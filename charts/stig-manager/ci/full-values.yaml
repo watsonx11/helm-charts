@@ -369,7 +369,7 @@ tests:
   timeout: 15
 
 extraManifests:
-  - apiVersion: security.istio.io/v1beta1
+  - apiVersion: security.istio.io/v1
     kind: PeerAuthentication
     metadata:
       name: '{{ include "stig-manager.fullname" . }}'
@@ -382,7 +382,7 @@ extraManifests:
           app.kubernetes.io/name: stig-manager
       mtls:
         mode: STRICT
-  - apiVersion: external-secrets.io/v1beta1
+  - apiVersion: external-secrets.io/v1
     kind: ExternalSecret
     metadata:
       name: stigman-db-credentials

@@ -4,10 +4,16 @@
 # changes. A chart published without a version bump is indistinguishable from
 # the one already in the index, and clients cache accordingly.
 #
-# Which charts changed comes from pre-commit's own filename list rather than
-# `git diff`, because that list already honours the hook's files:/exclude:
-# patterns. README.md, .helmignore and ci/ are excluded there, so regenerating
-# documentation or adjusting a test values file does not demand a bump.
+# Candidate charts come from pre-commit's own filename list, which already
+# honours the hook's files:/exclude: patterns. But that list is not on its own
+# evidence of a change: `pre-commit run --all-files` passes every chart file
+# whether or not anything differs, so a fresh clone on a clean tree would fail.
+# Each candidate is therefore confirmed against the base ref with `git diff`
+# before its version is checked.
+#
+# README.md, .helmignore and ci/ are excluded from both the hook's files: list
+# and the diff, so regenerating documentation or adjusting a test values file
+# does not demand a bump.
 #
 # Escape hatch: SKIP=chart-version-bump git commit ...
 set -euo pipefail
@@ -109,12 +115,36 @@ semver_cmp() {
   fi
 }
 
+# chart_content_changed CHART — true when the chart differs from $base in any
+# file that is not documentation or a CI values file. Covers tracked changes
+# (staged and unstaged, since pre-commit stashes the latter during a commit) and
+# newly added files that git does not track yet.
+chart_content_changed() {
+  local chart=$1
+  if ! git diff --quiet "$base" -- "$chart" \
+    ":(exclude)$chart/README.md" \
+    ":(exclude)$chart/README.md.gotmpl" \
+    ":(exclude)$chart/.helmignore" \
+    ":(exclude)$chart/ci"; then
+    return 0
+  fi
+  [ -n "$(git ls-files --others --exclude-standard -- "$chart" \
+    ":(exclude)$chart/README.md" \
+    ":(exclude)$chart/README.md.gotmpl" \
+    ":(exclude)$chart/.helmignore" \
+    ":(exclude)$chart/ci")" ]
+}
+
 status=0
 
 # Heredoc rather than a pipe: under bash 3.2 the right-hand side of a pipe runs
 # in a subshell, so assignments to `status` would be discarded.
 while IFS= read -r chart; do
   [ -n "$chart" ] || continue
+
+  if ! chart_content_changed "$chart"; then
+    continue
+  fi
 
   old_raw=$(git show "$base:$chart/Chart.yaml" 2>/dev/null || true)
   if [ -z "$old_raw" ]; then
