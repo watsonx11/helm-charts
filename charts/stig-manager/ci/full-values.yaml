@@ -1,0 +1,396 @@
+# Every optional feature turned on, so `helm template` exercises every branch.
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 2
+
+image:
+  registry: ghcr.io
+  repository: nuwcdivnpt/stig-manager
+  tag: "1.6.15"
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: regcred
+
+classification: CUI
+
+api:
+  port: 54000
+  address: 0.0.0.0
+  maxJsonBody: 10485760
+  maxUpload: 2147483648
+
+database:
+  host: mysql.data.svc.cluster.local
+  port: 3306
+  schema: stigman
+  user: stigman
+  # Externally managed Secret (External Secrets, SOPS, OpenBao, ...) with a
+  # non-default key name — no chart-managed Secret should be rendered.
+  existingSecret: stigman-db-credentials
+  secretKeys:
+    password: mysql_password
+    dbTlsKeyPassphrase: mysql_tls_key_passphrase
+    apiTlsKeyPassphrase: api_tls_key_passphrase
+  maxConnections: 50
+  tls:
+    enabled: true
+    existingSecret: stigman-db-tls
+    mountPath: /etc/stigman/db-tls
+    caFile: ca.pem
+    certFile: client-cert.pem
+    keyFile: client-key.pem
+
+oidc:
+  provider: https://keycloak.example.com/realms/stigman
+  clientProvider: https://sso.example.com/realms/stigman
+  audience: stig-manager
+  jwksCacheMaxAge: 15
+  claims:
+    username: preferred_username
+    name: name
+    email: email
+    privileges: realm_access.roles
+    scope: scope
+    serviceName: clientId
+    assertion: jti
+
+client:
+  id: stig-manager
+  disabled: false
+  apiBase: api
+  scopePrefix: ""
+  extraScopes: offline_access
+  reauthAction: popup
+  responseMode: query
+  userTimeout: 60
+  adminTimeout: 10
+  stateEvents: true
+  strictPkce: true
+  consoleMode: production
+  displayAppManagers: true
+  welcome:
+    title: Example STIG Manager
+    message: Authorized use only.
+    link: https://stig-manager.readthedocs.io/en/latest/
+    image: https://example.com/logo.png
+
+swagger:
+  enabled: true
+  server: https://stigman.example.com/api
+  redirect: https://stigman.example.com/api-docs/oauth2-redirect.html
+  oidcProvider: https://keycloak.example.com/realms/stigman
+
+docs:
+  disabled: false
+
+logging:
+  level: 3
+  mode: combined
+
+dependencyRetries: 60
+
+experimental:
+  appData: true
+  logStream: true
+
+dev:
+  allowInsecureTokens: false
+  responseValidation: logOnly
+  logOptStats: true
+
+extraConfig:
+  STIGMAN_SOME_FUTURE_VAR: "future"
+
+trustedCAs:
+  enabled: true
+  bundleKey: ca-bundle.pem
+  mountPath: /etc/stigman/ca
+  setNodeExtraCaCerts: true
+  setOidcCaCerts: true
+  certs:
+    01-root: |
+      -----BEGIN CERTIFICATE-----
+      MIIBkTCB+wIJAKZ0000000000MA0GCSqGSIb3DQEBCwUAMBQxEjAQBgNVBAMMCUV4
+      YW1wbGVSb290MB4XDTI0MDEwMTAwMDAwMFoXDTM0MDEwMTAwMDAwMFowFDESMBAG
+      A1UEAwwJRXhhbXBsZVJvb3QwXDANBgkqhkiG9w0BAQEFAANLADBIAkEAqRootCert
+      -----END CERTIFICATE-----
+    02-intermediate: |
+      -----BEGIN CERTIFICATE-----
+      MIIBkTCB+wIJAKZ1111111111MA0GCSqGSIb3DQEBCwUAMBwxGjAYBgNVBAMMEUV4
+      YW1wbGVJbnRlcm1lZGlhdGUwHhcNMjQwMTAxMDAwMDAwWhcNMzQwMTAxMDAwMDAw
+      WjAcMRowGAYDVQQDDBFFeGFtcGxlSW50ZXJtZWRpYXRlAkEAqIntermediateCert
+      -----END CERTIFICATE-----
+
+tls:
+  enabled: true
+  existingSecret: stigman-api-tls
+  mountPath: /etc/stigman/tls
+  certFile: tls.crt
+  keyFile: tls.key
+
+service:
+  type: LoadBalancer
+  port: 443
+  loadBalancerIP: 192.0.2.10
+  loadBalancerSourceRanges:
+    - 10.0.0.0/8
+  externalTrafficPolicy: Local
+  sessionAffinity: ClientIP
+  annotations:
+    example.com/purpose: stig-manager
+  labels:
+    tier: frontend
+  extraPorts:
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+  labels:
+    tier: frontend
+  hosts:
+    - host: stigman.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+        - path: /api
+          pathType: Prefix
+        - path: /docs
+          pathType: Prefix
+        - path: /api-docs
+          pathType: Prefix
+        - path: /socket
+          pathType: Prefix
+  tls:
+    - secretName: stigman-ingress-tls
+      hosts:
+        - stigman.example.com
+  extraRules:
+    - host: stigman-alt.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: '{{ include "stig-manager.fullname" . }}'
+                port:
+                  number: 443
+  extraTls:
+    - secretName: stigman-alt-tls
+      hosts:
+        - stigman-alt.example.com
+
+networkPolicy:
+  enabled: true
+  allowAllIngress: false
+  allowedIngress:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+    - ipBlock:
+        cidr: 10.0.0.0/8
+  extraIngressPorts:
+    - port: 9090
+      protocol: TCP
+  allowAllEgress: false
+  egress:
+    dns: true
+    database:
+      enabled: true
+      to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: data
+      port: 3306
+    extra:
+      - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: keycloak
+        ports:
+          - port: 8443
+            protocol: TCP
+
+commonLabels:
+  example.com/owner: platform
+commonAnnotations:
+  example.com/change-request: CR-1234
+podAnnotations:
+  example.com/scrape: "true"
+podLabels:
+  tier: api
+priorityClassName: high-priority
+terminationGracePeriodSeconds: 45
+nodeSelector:
+  kubernetes.io/os: linux
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: apps
+    effect: NoSchedule
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: stig-manager
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: stig-manager
+dnsPolicy: ClusterFirst
+dnsConfig:
+  options:
+    - name: ndots
+      value: "2"
+hostAliases:
+  - ip: 192.0.2.20
+    hostnames:
+      - keycloak.example.com
+
+lifecycle:
+  preStop:
+    exec:
+      command: ["/bin/sh", "-c", "sleep 5"]
+
+initContainers:
+  - name: wait-for-db
+    image: busybox:1.36
+    command: ["sh", "-c", "until nc -z {{ .Values.database.host }} {{ .Values.database.port }}; do sleep 2; done"]
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: [ALL]
+
+sidecars:
+  - name: log-shipper
+    image: busybox:1.36
+    command: ["sh", "-c", "sleep infinity"]
+    ports:
+      - name: metrics
+        containerPort: 9090
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: [ALL]
+
+extraContainerPorts:
+  - name: debug
+    containerPort: 9229
+    protocol: TCP
+
+extraVolumes:
+  - name: extra-config
+    configMap:
+      name: stigman-extra-config
+extraVolumeMounts:
+  - name: extra-config
+    mountPath: /etc/stigman/extra
+    readOnly: true
+
+extraEnvVarsCM:
+  - stigman-extra-env
+extraEnvVarsSecret:
+  - stigman-extra-secret-env
+extraEnvVars:
+  - name: STIGMAN_DB_TLS_KEY_PASSPHRASE
+    valueFrom:
+      secretKeyRef:
+        name: '{{ .Values.database.existingSecret }}'
+        key: mysql_tls_key_passphrase
+        optional: true
+  - name: TZ
+    value: UTC
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 768Mi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+tmpVolume:
+  enabled: true
+  medium: Memory
+  sizeLimit: 512Mi
+
+startupProbe:
+  enabled: true
+  path: /api/op/configuration
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 60
+readinessProbe:
+  enabled: true
+  path: /api/op/configuration
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+livenessProbe:
+  enabled: true
+  custom:
+    httpGet:
+      path: /api/op/state
+      port: http
+      scheme: HTTPS
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 5
+
+tests:
+  enabled: true
+  timeout: 15
+
+extraManifests:
+  - apiVersion: security.istio.io/v1beta1
+    kind: PeerAuthentication
+    metadata:
+      name: '{{ include "stig-manager.fullname" . }}'
+      namespace: '{{ .Release.Namespace }}'
+      labels:
+        '{{ include "stig-manager.name" . }}': enabled
+    spec:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: stig-manager
+      mtls:
+        mode: STRICT
+  - apiVersion: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    metadata:
+      name: stigman-db-credentials
+      namespace: '{{ .Release.Namespace }}'
+    spec:
+      refreshInterval: 1h
+      secretStoreRef:
+        name: openbao
+        kind: ClusterSecretStore
+      target:
+        name: stigman-db-credentials
+      data:
+        - secretKey: mysql_password
+          remoteRef:
+            key: stig-manager
+            property: mysql_password

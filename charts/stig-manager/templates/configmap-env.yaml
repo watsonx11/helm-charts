@@ -1,0 +1,89 @@
+{{- include "stig-manager.validateValues" . -}}
+{{- $claims := .Values.oidc.claims | default dict -}}
+{{- $welcome := .Values.client.welcome | default dict -}}
+{{/*
+Only non-null values are emitted, so anything left unset in values.yaml falls
+through to the application's own default rather than being pinned to "".
+*/}}
+{{- $vars := dict
+  "STIGMAN_CLASSIFICATION"              .Values.classification
+  "STIGMAN_API_PORT"                    .Values.api.port
+  "STIGMAN_API_ADDRESS"                 .Values.api.address
+  "STIGMAN_API_MAX_JSON_BODY"           .Values.api.maxJsonBody
+  "STIGMAN_API_MAX_UPLOAD"              .Values.api.maxUpload
+  "STIGMAN_DB_HOST"                     .Values.database.host
+  "STIGMAN_DB_PORT"                     .Values.database.port
+  "STIGMAN_DB_SCHEMA"                   .Values.database.schema
+  "STIGMAN_DB_USER"                     .Values.database.user
+  "STIGMAN_DB_MAX_CONNECTIONS"          .Values.database.maxConnections
+  "STIGMAN_OIDC_PROVIDER"               .Values.oidc.provider
+  "STIGMAN_CLIENT_OIDC_PROVIDER"        .Values.oidc.clientProvider
+  "STIGMAN_JWT_AUD_VALUE"               .Values.oidc.audience
+  "STIGMAN_JWKS_CACHE_MAX_AGE"          .Values.oidc.jwksCacheMaxAge
+  "STIGMAN_JWT_USERNAME_CLAIM"          $claims.username
+  "STIGMAN_JWT_NAME_CLAIM"              $claims.name
+  "STIGMAN_JWT_EMAIL_CLAIM"             $claims.email
+  "STIGMAN_JWT_PRIVILEGES_CLAIM"        $claims.privileges
+  "STIGMAN_JWT_SCOPE_CLAIM"             $claims.scope
+  "STIGMAN_JWT_SERVICENAME_CLAIM"       $claims.serviceName
+  "STIGMAN_JWT_ASSERTION_CLAIM"         $claims.assertion
+  "STIGMAN_CLIENT_ID"                   .Values.client.id
+  "STIGMAN_CLIENT_DISABLED"             .Values.client.disabled
+  "STIGMAN_CLIENT_DIRECTORY"            .Values.client.directory
+  "STIGMAN_CLIENT_API_BASE"             .Values.client.apiBase
+  "STIGMAN_CLIENT_SCOPE_PREFIX"         .Values.client.scopePrefix
+  "STIGMAN_CLIENT_EXTRA_SCOPES"         .Values.client.extraScopes
+  "STIGMAN_CLIENT_REAUTH_ACTION"        .Values.client.reauthAction
+  "STIGMAN_CLIENT_RESPONSE_MODE"        .Values.client.responseMode
+  "STIGMAN_CLIENT_USER_TIMEOUT"         .Values.client.userTimeout
+  "STIGMAN_CLIENT_ADMIN_TIMEOUT"        .Values.client.adminTimeout
+  "STIGMAN_CLIENT_STATE_EVENTS"         .Values.client.stateEvents
+  "STIGMAN_CLIENT_STRICT_PKCE"          .Values.client.strictPkce
+  "STIGMAN_CLIENT_CONSOLE_MODE"         .Values.client.consoleMode
+  "STIGMAN_CLIENT_DISPLAY_APPMANAGERS"  .Values.client.displayAppManagers
+  "STIGMAN_CLIENT_WELCOME_TITLE"        $welcome.title
+  "STIGMAN_CLIENT_WELCOME_MESSAGE"      $welcome.message
+  "STIGMAN_CLIENT_WELCOME_LINK"         $welcome.link
+  "STIGMAN_CLIENT_WELCOME_IMAGE"        $welcome.image
+  "STIGMAN_SWAGGER_ENABLED"             .Values.swagger.enabled
+  "STIGMAN_SWAGGER_SERVER"              .Values.swagger.server
+  "STIGMAN_SWAGGER_REDIRECT"            .Values.swagger.redirect
+  "STIGMAN_SWAGGER_OIDC_PROVIDER"       .Values.swagger.oidcProvider
+  "STIGMAN_DOCS_DISABLED"               .Values.docs.disabled
+  "STIGMAN_DOCS_DIRECTORY"              .Values.docs.directory
+  "STIGMAN_LOG_LEVEL"                   .Values.logging.level
+  "STIGMAN_LOG_MODE"                    .Values.logging.mode
+  "STIGMAN_DEPENDENCY_RETRIES"          .Values.dependencyRetries
+  "STIGMAN_EXPERIMENTAL_APPDATA"        .Values.experimental.appData
+  "STIGMAN_EXPERIMENTAL_LOGSTREAM"      .Values.experimental.logStream
+  "STIGMAN_DEV_ALLOW_INSECURE_TOKENS"   .Values.dev.allowInsecureTokens
+  "STIGMAN_DEV_RESPONSE_VALIDATION"     .Values.dev.responseValidation
+  "STIGMAN_DEV_LOG_OPT_STATS"           .Values.dev.logOptStats
+-}}
+{{- /* extraConfig is merged last so it can override anything above. */ -}}
+{{- range $key, $value := .Values.extraConfig }}
+{{- $_ := set $vars $key $value }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "stig-manager.configMapName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stig-manager.labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  {{- range $key := keys $vars | sortAlpha }}
+  {{- $value := get $vars $key }}
+  {{- if not (kindIs "invalid" $value) }}
+  {{- /* YAML numbers arrive as float64; print whole numbers without an exponent. */}}
+  {{- if and (kindIs "float64" $value) (eq $value (floor $value)) }}
+  {{ $key }}: {{ printf "%.0f" $value | quote }}
+  {{- else }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{- end }}
+  {{- end }}

@@ -1,0 +1,24 @@
+{{- if include "stig-manager.createCAConfigMap" . }}
+{{/*
+Every PEM in trustedCAs.certs is concatenated, in key order, into a single
+bundle: both NODE_EXTRA_CA_CERTS and STIGMAN_OIDC_CA_CERTS take exactly one
+file path, so one file has to carry every trusted issuer.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "stig-manager.caConfigMapName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stig-manager.labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  {{ .Values.trustedCAs.bundleKey }}: |
+    {{- range $name := keys .Values.trustedCAs.certs | sortAlpha }}
+    # {{ $name }}
+    {{- get $.Values.trustedCAs.certs $name | trim | nindent 4 }}
+    {{- end }}
+{{- end }}

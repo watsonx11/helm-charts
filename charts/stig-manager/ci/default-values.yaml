@@ -1,0 +1,9 @@
+# Minimal install: an external MySQL and an OIDC provider, nothing else.
+database:
+  host: mysql.data.svc.cluster.local
+  schema: stigman
+  user: stigman
+  password: not-a-real-password
+
+oidc:
+  provider: https://keycloak.example.com/realms/stigman

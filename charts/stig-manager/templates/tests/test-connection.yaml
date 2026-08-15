@@ -1,0 +1,43 @@
+{{- if .Values.tests.enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "stig-manager.fullname" . }}-test-connection
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "stig-manager.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  {{- with .Values.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.tests.podSecurityContext }}
+  securityContext:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  containers:
+    - name: curl
+      image: {{ .Values.tests.image.repository }}:{{ .Values.tests.image.tag }}
+      imagePullPolicy: {{ .Values.tests.image.pullPolicy }}
+      {{- with .Values.tests.containerSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          url="{{ if .Values.tls.enabled }}https{{ else }}http{{ end }}://{{ include "stig-manager.fullname" . }}:{{ .Values.service.port }}/api/op/configuration"
+          echo "GET ${url}"
+          curl -sSf {{ if .Values.tls.enabled }}-k {{ end }}--max-time {{ .Values.tests.timeout }} "${url}" > /dev/null
+          echo "OK"
+      {{- with .Values.tests.resources }}
+      resources:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

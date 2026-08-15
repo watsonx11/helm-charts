@@ -1,0 +1,9 @@
+{{- /*
+Passthrough for anything this chart deliberately does not model: Istio
+PeerAuthentication, Gateway API HTTPRoute, ExternalSecret, ServiceMonitor, and so
+on. Each entry is rendered through `tpl`, so Helm templating is available inside.
+*/ -}}
+{{- range .Values.extraManifests }}
+---
+{{ tpl (toYaml .) $ }}
+{{- end }}

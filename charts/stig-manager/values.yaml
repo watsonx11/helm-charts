@@ -1,0 +1,674 @@
+# Default values for stig-manager.
+#
+# This chart deploys the STIG Manager application only. It ships no database:
+# point `database.*` at an externally managed MySQL 8 instance. It also ships no
+# service-mesh, Gateway-API or secret-manager objects — use `extraManifests` to
+# layer those on from your own values overlay.
+#
+# Every STIGMAN_* variable the application understands is reachable from here.
+# Any value left `null` is NOT written to the ConfigMap, so the application's own
+# default applies. The comment on each key records that upstream default.
+# Reference: https://stig-manager.readthedocs.io/en/latest/installation-and-setup/envvars.html
+
+# -- Override the chart name used in resource names and labels.
+nameOverride: ""
+# -- Override the fully qualified release name.
+fullnameOverride: ""
+
+image:
+  # -- Image registry. Leave empty to use the repository as written (Docker Hub).
+  registry: ""
+  # -- Image repository.
+  repository: nuwcdivnpt/stig-manager
+  # -- Image tag. Defaults to the chart's appVersion.
+  tag: ""
+  # -- Pull by digest instead of tag (e.g. `sha256:abc...`). Wins over `tag`.
+  digest: ""
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets applied to the pod.
+imagePullSecrets: []
+#  - name: regcred
+
+# -- Number of API replicas. The API is stateless; all state lives in MySQL.
+replicaCount: 1
+
+# -- Deployment update strategy.
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# -- How many old ReplicaSets to retain.
+revisionHistoryLimit: 3
+
+serviceAccount:
+  # -- Create a ServiceAccount for the pod.
+  create: true
+  # -- Name of the ServiceAccount. Generated from the release name when empty.
+  name: ""
+  # -- Extra annotations for the ServiceAccount.
+  annotations: {}
+  # -- Extra labels for the ServiceAccount.
+  labels: {}
+  # -- Mount a token into pods that use this ServiceAccount by default.
+  automountServiceAccountToken: false
+  # -- Image pull secrets attached to the ServiceAccount.
+  imagePullSecrets: []
+
+# -- Mount the ServiceAccount token in the API pod. The application never calls
+# the Kubernetes API, so this stays off.
+automountServiceAccountToken: false
+
+# ------------------------------------------------------------------------------
+# Application configuration (STIGMAN_*)
+# ------------------------------------------------------------------------------
+
+# -- STIGMAN_CLASSIFICATION. Classification banner rendered by the web client.
+# One of: NONE, U, CUI, C, S, TS, SCI. Upstream default: U.
+classification: U
+
+api:
+  # -- STIGMAN_API_PORT. TCP port the API listens on. Also the container port.
+  port: 54000
+  # -- STIGMAN_API_ADDRESS. Listen address. Upstream default: 0.0.0.0.
+  address: null
+  # -- STIGMAN_API_MAX_JSON_BODY. Max application/json request body, in bytes.
+  # Upstream default: 5242880.
+  maxJsonBody: null
+  # -- STIGMAN_API_MAX_UPLOAD. Max multipart/form-data upload, in bytes.
+  # Upstream default: 1073741824.
+  maxUpload: null
+
+# ------------------------------------------------------------------------------
+# Connecting to an external MySQL
+# ------------------------------------------------------------------------------
+# STIG Manager requires MySQL 8. This chart does not deploy one. Create the
+# schema and a user with full rights on it, then either:
+#
+#   a) set `database.password` here (the chart templates a Secret), or
+#   b) point `database.existingSecret` at a Secret you manage yourself — from
+#      External Secrets, SOPS, a Vault/OpenBao injector, anything. In that case
+#      set `database.secretKeys.password` to whatever key that Secret uses:
+#
+#        database:
+#          existingSecret: stigman-db
+#          secretKeys:
+#            password: mysql_password
+#
+# `existingSecret` always wins: when it is set the chart renders no Secret of
+# its own and never reads `database.password`.
+database:
+  # -- STIGMAN_DB_HOST. Hostname or IP of the MySQL server.
+  host: mysql
+  # -- STIGMAN_DB_PORT. MySQL TCP port.
+  port: 3306
+  # -- STIGMAN_DB_SCHEMA. Schema holding the STIG Manager objects.
+  schema: stigman
+  # -- STIGMAN_DB_USER. MySQL user.
+  user: stigman
+  # -- Password for `database.user`. Ignored when `existingSecret` is set.
+  password: ""
+  # -- Name of an existing Secret carrying the database credentials. Wins over
+  # `database.password`; when set, no Secret is created by this chart.
+  existingSecret: ""
+  # -- Keys within the Secret (chart-managed or existing).
+  secretKeys:
+    # -- Key holding the database password (STIGMAN_DB_PASSWORD).
+    password: db-password
+    # -- Key holding the database TLS private key passphrase, if your tooling
+    # stores one. Not consumed by the application today; kept so a single Secret
+    # can carry it for use via `extraEnvVars`.
+    dbTlsKeyPassphrase: db-tls-key-passphrase
+    # -- Key holding the API server TLS private key passphrase
+    # (STIGMAN_API_TLS_KEY_PASSPHRASE).
+    apiTlsKeyPassphrase: api-tls-key-passphrase
+  # -- STIGMAN_DB_MAX_CONNECTIONS. Connection pool size. Upstream default: 25.
+  maxConnections: null
+
+  # TLS to the database. Mount the PEM material from a Secret you manage; the
+  # file names below are keys within that Secret.
+  tls:
+    # -- Enable TLS to MySQL. Requires `existingSecret`.
+    enabled: false
+    # -- Secret holding the database TLS material.
+    existingSecret: ""
+    # -- Where the material is mounted in the container.
+    mountPath: /etc/stigman/db-tls
+    # -- STIGMAN_DB_TLS_CA_FILE. Key in the Secret holding the CA certificate.
+    # Setting this is what enables TLS connections to the database.
+    caFile: ca.pem
+    # -- STIGMAN_DB_TLS_CERT_FILE. Client certificate, for mTLS. Optional.
+    certFile: ""
+    # -- STIGMAN_DB_TLS_KEY_FILE. Client private key, for mTLS. Optional.
+    keyFile: ""
+    # -- Passphrase for the client private key. Stored under
+    # `database.secretKeys.dbTlsKeyPassphrase` in the chart-managed Secret.
+    keyPassphrase: ""
+
+# ------------------------------------------------------------------------------
+# OIDC / authentication
+# ------------------------------------------------------------------------------
+oidc:
+  # -- STIGMAN_OIDC_PROVIDER. Base URL of the OIDC issuer.
+  # `/.well-known/openid-configuration` is appended when fetching metadata.
+  # e.g. https://keycloak.example.com/realms/stigman
+  provider: ""
+  # -- STIGMAN_CLIENT_OIDC_PROVIDER. Web-client override of the issuer URL, for
+  # split-horizon DNS where the browser and the API reach the IdP differently.
+  clientProvider: null
+  # -- STIGMAN_JWT_AUD_VALUE. Required `aud` claim value. Unset disables the check.
+  audience: null
+  # -- STIGMAN_JWKS_CACHE_MAX_AGE. Minutes before the JWKS cache is stale.
+  # Upstream default: 10.
+  jwksCacheMaxAge: null
+  # Access-token claim names. Leave null to use the upstream defaults, which
+  # match a stock Keycloak realm.
+  claims:
+    # -- STIGMAN_JWT_USERNAME_CLAIM. Upstream default: preferred_username.
+    username: null
+    # -- STIGMAN_JWT_NAME_CLAIM. Upstream default: name.
+    name: null
+    # -- STIGMAN_JWT_EMAIL_CLAIM. Upstream default: email.
+    email: null
+    # -- STIGMAN_JWT_PRIVILEGES_CLAIM. Upstream default: realm_access.roles.
+    privileges: null
+    # -- STIGMAN_JWT_SCOPE_CLAIM. Upstream default: scope.
+    scope: null
+    # -- STIGMAN_JWT_SERVICENAME_CLAIM. Upstream default: clientId.
+    serviceName: null
+    # -- STIGMAN_JWT_ASSERTION_CLAIM. Upstream default: jti.
+    assertion: null
+
+# ------------------------------------------------------------------------------
+# Reference web client
+# ------------------------------------------------------------------------------
+client:
+  # -- STIGMAN_CLIENT_ID. OIDC clientId the web client authenticates with.
+  # Upstream default: stig-manager.
+  id: stig-manager
+  # -- STIGMAN_CLIENT_DISABLED. `true` stops the API serving the web client.
+  disabled: null
+  # -- STIGMAN_CLIENT_DIRECTORY. Location of the client files inside the image.
+  directory: null
+  # -- STIGMAN_CLIENT_API_BASE. Base URL for client → API requests, relative to
+  # window.location. Upstream default: api.
+  apiBase: null
+  # -- STIGMAN_CLIENT_SCOPE_PREFIX. Prefix added to each requested scope. Needed
+  # by providers such as Entra ID (`api://<app-id>/`).
+  scopePrefix: null
+  # -- STIGMAN_CLIENT_EXTRA_SCOPES. Space-separated extra OAuth2 scopes, e.g.
+  # `offline_access` for Okta.
+  extraScopes: null
+  # -- STIGMAN_CLIENT_REAUTH_ACTION. How to re-prompt on token expiry:
+  # popup, iframe, tab or reload. Upstream default: popup.
+  reauthAction: null
+  # -- STIGMAN_CLIENT_RESPONSE_MODE. Deprecated upstream. query or fragment.
+  responseMode: null
+  # -- STIGMAN_CLIENT_USER_TIMEOUT. Idle minutes before a regular user must
+  # re-authenticate. 0 disables idle detection. Upstream default: 60.
+  userTimeout: null
+  # -- STIGMAN_CLIENT_ADMIN_TIMEOUT. Same, for admin users. Upstream default: 10.
+  adminTimeout: null
+  # -- STIGMAN_CLIENT_STATE_EVENTS. Whether the client consumes server-sent
+  # events about API state. Disable only to work around proxy buffering.
+  stateEvents: null
+  # -- STIGMAN_CLIENT_STRICT_PKCE. Whether the client requires the provider to
+  # advertise PKCE/S256 per RFC 8414.
+  strictPkce: null
+  # -- STIGMAN_CLIENT_CONSOLE_MODE. Browser console verbosity. Upstream
+  # default: production.
+  consoleMode: null
+  # -- STIGMAN_CLIENT_DISPLAY_APPMANAGERS. Show application managers on the home
+  # page.
+  displayAppManagers: null
+  welcome:
+    # -- STIGMAN_CLIENT_WELCOME_TITLE. Title of the Home tab welcome widget.
+    title: null
+    # -- STIGMAN_CLIENT_WELCOME_MESSAGE. Body text of the welcome widget.
+    message: null
+    # -- STIGMAN_CLIENT_WELCOME_LINK. Link rendered after the welcome message.
+    link: null
+    # -- STIGMAN_CLIENT_WELCOME_IMAGE. URL of an externally hosted image. The
+    # application does not serve this image itself.
+    image: null
+
+# ------------------------------------------------------------------------------
+# SwaggerUI (/api-docs)
+# ------------------------------------------------------------------------------
+swagger:
+  # -- STIGMAN_SWAGGER_ENABLED. Serve the SwaggerUI SPA at /api-docs.
+  # Upstream default: false.
+  enabled: null
+  # -- STIGMAN_SWAGGER_SERVER. API base URL as SwaggerUI should call it,
+  # e.g. https://stigman.example.com/api.
+  server: null
+  # -- STIGMAN_SWAGGER_REDIRECT. OAuth2 redirect URL SwaggerUI sends to the IdP,
+  # e.g. https://stigman.example.com/api-docs/oauth2-redirect.html.
+  redirect: null
+  # -- STIGMAN_SWAGGER_OIDC_PROVIDER. SwaggerUI override of the issuer URL.
+  oidcProvider: null
+
+# ------------------------------------------------------------------------------
+# Documentation (/docs)
+# ------------------------------------------------------------------------------
+docs:
+  # -- STIGMAN_DOCS_DISABLED. `true` stops the API serving the documentation.
+  disabled: null
+  # -- STIGMAN_DOCS_DIRECTORY. Location of the docs inside the image.
+  directory: null
+
+# ------------------------------------------------------------------------------
+# Logging and startup behaviour
+# ------------------------------------------------------------------------------
+logging:
+  # -- STIGMAN_LOG_LEVEL. 1 (error) to 4 (debug). Upstream default: 3.
+  level: null
+  # -- STIGMAN_LOG_MODE. `combined` for one entry per request/response pair,
+  # `separate` for two. Upstream default: combined.
+  mode: null
+
+# -- STIGMAN_DEPENDENCY_RETRIES. Startup retries against MySQL and the OIDC
+# provider before giving up. Upstream default: 24.
+dependencyRetries: null
+
+experimental:
+  # -- STIGMAN_EXPERIMENTAL_APPDATA. Enable the AppData import/export endpoints.
+  appData: null
+  # -- STIGMAN_EXPERIMENTAL_LOGSTREAM. WebSocket log stream at /socket/.
+  # Upstream default: true.
+  logStream: null
+
+dev:
+  # -- STIGMAN_DEV_ALLOW_INSECURE_TOKENS. Accept known-insecure JWT signing keys.
+  # Development and testing only.
+  allowInsecureTokens: null
+  # -- STIGMAN_DEV_RESPONSE_VALIDATION. `none` or `logOnly`.
+  responseValidation: null
+  # -- STIGMAN_DEV_LOG_OPT_STATS. Track operation statistics for /op/appinfo.
+  logOptStats: null
+
+# -- Raw STIGMAN_* passthrough, merged into the ConfigMap last and therefore
+# able to override anything above. Use for variables this chart does not model
+# yet. Keys must be the literal environment variable names.
+extraConfig: {}
+#  STIGMAN_SOME_NEW_VAR: "value"
+
+# ------------------------------------------------------------------------------
+# Custom CA certificates
+# ------------------------------------------------------------------------------
+# The API must complete TLS to your OIDC provider (and optionally to MySQL). If
+# either presents a certificate from a private CA, the certificate chain has to
+# be inside the container. Both NODE_EXTRA_CA_CERTS and STIGMAN_OIDC_CA_CERTS
+# take exactly one file path, so every PEM supplied here is concatenated into a
+# single bundle.
+#
+# Inline form — the chart creates the ConfigMap:
+#
+#   trustedCAs:
+#     enabled: true
+#     certs:
+#       corporate-root: |
+#         -----BEGIN CERTIFICATE-----
+#         ...
+#         -----END CERTIFICATE-----
+#       corporate-intermediate: |
+#         -----BEGIN CERTIFICATE-----
+#         ...
+#         -----END CERTIFICATE-----
+#
+# Existing-object form — bring your own, e.g. one written by cert-manager or by
+# a trust-manager Bundle:
+#
+#   trustedCAs:
+#     enabled: true
+#     existingConfigMap: corporate-ca-bundle
+#     bundleKey: ca-bundle.pem      # the key within that ConfigMap
+trustedCAs:
+  # -- Mount a CA bundle and point the application at it.
+  enabled: false
+  # -- Map of name → PEM. Concatenated in key order into one bundle file.
+  certs: {}
+  # -- Use an existing ConfigMap instead of `certs`. Mutually exclusive with
+  # `existingSecret`.
+  existingConfigMap: ""
+  # -- Use an existing Secret instead of `certs`. Mutually exclusive with
+  # `existingConfigMap`.
+  existingSecret: ""
+  # -- Key within the ConfigMap/Secret, and the file name once mounted.
+  bundleKey: ca-bundle.pem
+  # -- Directory the bundle is mounted into.
+  mountPath: /etc/stigman/ca
+  # -- Set NODE_EXTRA_CA_CERTS to the bundle (trust for all Node TLS clients).
+  setNodeExtraCaCerts: true
+  # -- Set STIGMAN_OIDC_CA_CERTS to the bundle (trust for OIDC calls only).
+  setOidcCaCerts: true
+
+# ------------------------------------------------------------------------------
+# TLS on the API listener
+# ------------------------------------------------------------------------------
+# Only needed when the pod must serve HTTPS itself. Most deployments terminate
+# TLS at an ingress controller or a service mesh and leave this off.
+tls:
+  # -- Serve HTTPS directly from the API container. Requires `existingSecret`.
+  enabled: false
+  # -- Secret holding the server certificate and key.
+  existingSecret: ""
+  # -- Where that Secret is mounted.
+  mountPath: /etc/stigman/tls
+  # -- STIGMAN_API_TLS_CERT_FILE. Key in the Secret holding the certificate.
+  certFile: tls.crt
+  # -- STIGMAN_API_TLS_KEY_FILE. Key in the Secret holding the private key.
+  keyFile: tls.key
+  # -- STIGMAN_API_TLS_KEY_PASSPHRASE, if the key is encrypted.
+  keyPassphrase: ""
+
+# ------------------------------------------------------------------------------
+# Service
+# ------------------------------------------------------------------------------
+service:
+  # -- Service type.
+  type: ClusterIP
+  # -- Service port.
+  port: 80
+  # -- Target port. Defaults to the container's named `http` port.
+  targetPort: ""
+  # -- Node port, when `type` is NodePort.
+  nodePort: null
+  # -- Explicit clusterIP, or `None` for a headless Service.
+  clusterIP: ""
+  # -- LoadBalancer IP request.
+  loadBalancerIP: ""
+  # -- LoadBalancer implementation class.
+  loadBalancerClass: ""
+  # -- Source ranges permitted to reach a LoadBalancer Service.
+  loadBalancerSourceRanges: []
+  # -- externalTrafficPolicy for NodePort/LoadBalancer Services.
+  externalTrafficPolicy: ""
+  # -- Session affinity: None or ClientIP.
+  sessionAffinity: ""
+  # -- Session affinity tuning.
+  sessionAffinityConfig: {}
+  # -- IP family policy.
+  ipFamilyPolicy: ""
+  # -- IP families.
+  ipFamilies: []
+  # -- Extra Service annotations.
+  annotations: {}
+  # -- Extra Service labels.
+  labels: {}
+  # -- Additional Service ports, e.g. for a sidecar.
+  extraPorts: []
+
+# ------------------------------------------------------------------------------
+# Ingress (networking.k8s.io/v1 only)
+# ------------------------------------------------------------------------------
+# STIG Manager serves everything from one origin, so a single `/` Prefix rule is
+# usually right. Split it only when a platform routes the sub-paths separately:
+#
+#   paths:
+#     - {path: /,         pathType: Prefix}   # web client
+#     - {path: /api,      pathType: Prefix}   # API
+#     - {path: /docs,     pathType: Prefix}   # documentation
+#     - {path: /api-docs, pathType: Prefix}   # SwaggerUI
+#     - {path: /socket,   pathType: Prefix}   # log-stream WebSocket
+#
+# The WebSocket at /socket/ needs an ingress controller configured to upgrade
+# connections; with ingress-nginx that is the default.
+ingress:
+  # -- Create an Ingress.
+  enabled: false
+  # -- ingressClassName.
+  className: ""
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress labels.
+  labels: {}
+  # -- Hosts and their paths. `host` is rendered through `tpl`.
+  hosts:
+    - host: stig-manager.local
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- TLS blocks.
+  tls: []
+  #  - secretName: stig-manager-tls
+  #    hosts:
+  #      - stig-manager.local
+  # -- Verbatim extra rules, appended to `rules`. Rendered through `tpl`.
+  extraRules: []
+  # -- Verbatim extra TLS blocks. Rendered through `tpl`.
+  extraTls: []
+
+# ------------------------------------------------------------------------------
+# NetworkPolicy
+# ------------------------------------------------------------------------------
+networkPolicy:
+  # -- Create a NetworkPolicy for the API pod.
+  enabled: false
+  # -- Accept ingress from anywhere on the API port. When false, only
+  # `allowedIngress` peers are accepted.
+  allowAllIngress: false
+  # -- Peers permitted to reach the API port: podSelector, namespaceSelector
+  # and/or ipBlock entries, exactly as the NetworkPolicy API expects them.
+  allowedIngress: []
+  #  - namespaceSelector:
+  #      matchLabels:
+  #        kubernetes.io/metadata.name: ingress-nginx
+  #  - ipBlock:
+  #      cidr: 10.0.0.0/8
+  # -- Additional ports accepted alongside the API port.
+  extraIngressPorts: []
+  # -- Verbatim extra ingress rules.
+  extraIngress: []
+  # -- Permit all egress instead of enumerating destinations. Simplest option
+  # when the OIDC provider lives outside the cluster.
+  allowAllEgress: false
+  egress:
+    # -- Permit DNS to kube-dns.
+    dns: true
+    database:
+      # -- Permit egress to the database.
+      enabled: true
+      # -- Destination peers. Defaults to 0.0.0.0/0 on the database port.
+      to: []
+      # -- Destination port. Defaults to `database.port`.
+      port: null
+    # -- Verbatim extra egress rules — the OIDC provider usually goes here.
+    extra: []
+    #  - to:
+    #      - namespaceSelector:
+    #          matchLabels:
+    #            kubernetes.io/metadata.name: keycloak
+    #    ports:
+    #      - port: 8443
+    #        protocol: TCP
+
+# ------------------------------------------------------------------------------
+# Pod placement and scheduling
+# ------------------------------------------------------------------------------
+# -- Labels added to every object this chart renders.
+commonLabels: {}
+# -- Annotations added to every object this chart renders.
+commonAnnotations: {}
+# -- Extra pod annotations.
+podAnnotations: {}
+# -- Extra pod labels.
+podLabels: {}
+# -- PriorityClass for the pod.
+priorityClassName: ""
+# -- Grace period on pod termination.
+terminationGracePeriodSeconds: 30
+# -- Node selector.
+nodeSelector: {}
+# -- Tolerations.
+tolerations: []
+# -- Affinity rules.
+affinity: {}
+# -- Topology spread constraints.
+topologySpreadConstraints: []
+# -- Pod DNS policy.
+dnsPolicy: ""
+# -- Pod DNS config.
+dnsConfig: {}
+# -- Extra /etc/hosts entries.
+hostAliases: []
+
+# -- Override the image's entrypoint. The image runs `node index.js` from
+# /home/node.
+command: []
+# -- Override the arguments.
+args: []
+# -- Container lifecycle hooks.
+lifecycle: {}
+# -- Init containers. Rendered through `tpl`.
+initContainers: []
+# -- Sidecar containers. Rendered through `tpl`.
+sidecars: []
+# -- Extra container ports on the API container.
+extraContainerPorts: []
+
+# -- Resource requests and limits. The API is a single Node process; give it
+# enough memory for the STIG library it loads at startup.
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    memory: 1Gi
+
+# -- Pod-level security context.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container-level security context. `readOnlyRootFilesystem: true` requires
+# `tmpVolume.enabled` — Node writes its compile cache under /tmp.
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  privileged: false
+  capabilities:
+    drop:
+      - ALL
+
+# -- Writable /tmp, required by `readOnlyRootFilesystem`.
+tmpVolume:
+  enabled: true
+  # -- emptyDir medium. Set to `Memory` for a tmpfs.
+  medium: ""
+  # -- Size limit for the emptyDir.
+  sizeLimit: 256Mi
+
+# -- Extra volumes on the pod. Rendered through `tpl`.
+extraVolumes: []
+# -- Extra volume mounts on the API container. Rendered through `tpl`.
+extraVolumeMounts: []
+
+# -- Names of existing ConfigMaps to load wholesale as environment.
+extraEnvVarsCM: []
+# -- Names of existing Secrets to load wholesale as environment.
+extraEnvVarsSecret: []
+# -- Extra environment variables in raw `env:` form. Applied last, so these win
+# over everything else. Rendered through `tpl`.
+extraEnvVars: []
+#  - name: STIGMAN_DB_TLS_KEY_PASSPHRASE
+#    valueFrom:
+#      secretKeyRef:
+#        name: stigman-db
+#        key: db-tls-key-passphrase
+
+# ------------------------------------------------------------------------------
+# Probes
+# ------------------------------------------------------------------------------
+# /api/op/state and /api/op/configuration are unauthenticated in the OpenAPI
+# specification, which is what makes them usable as probe targets. /api/op/state
+# answers even while the API is still waiting on its dependencies, so it is the
+# liveness target; /api/op/configuration reflects database and OIDC reachability,
+# so it is the readiness and startup target.
+#
+# Set `custom` on any probe to replace the generated block entirely, e.g.
+#   livenessProbe:
+#     custom:
+#       exec:
+#         command: [/bin/sh, -c, "..."]
+startupProbe:
+  enabled: true
+  path: /api/op/configuration
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 30
+  custom: {}
+
+readinessProbe:
+  enabled: true
+  path: /api/op/configuration
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+  custom: {}
+
+livenessProbe:
+  enabled: true
+  path: /api/op/state
+  initialDelaySeconds: 15
+  periodSeconds: 20
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+  custom: {}
+
+# ------------------------------------------------------------------------------
+# helm test
+# ------------------------------------------------------------------------------
+tests:
+  # -- Render the `helm test` pod.
+  enabled: true
+  image:
+    repository: curlimages/curl
+    tag: "8.11.1"
+    pullPolicy: IfNotPresent
+  # -- curl timeout, in seconds.
+  timeout: 10
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+  resources: {}
+
+# ------------------------------------------------------------------------------
+# Escape hatch
+# ------------------------------------------------------------------------------
+# -- Arbitrary manifests rendered alongside the chart's own. Each entry is passed
+# through `tpl`, so Helm templating works inside. Use this for anything the chart
+# deliberately does not model: Istio PeerAuthentication, Gateway API HTTPRoute,
+# ExternalSecret, ServiceMonitor, and so on.
+extraManifests: []
+#  - apiVersion: security.istio.io/v1beta1
+#    kind: PeerAuthentication
+#    metadata:
+#      name: '{{ include "stig-manager.fullname" . }}'
+#      namespace: '{{ .Release.Namespace }}'
+#    spec:
+#      selector:
+#        matchLabels:
+#          app.kubernetes.io/name: stig-manager
+#      mtls:
+#        mode: STRICT
