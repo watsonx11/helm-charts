@@ -11,30 +11,40 @@
 # Reference: https://stig-manager.readthedocs.io/en/latest/installation-and-setup/envvars.html
 
 # -- Override the chart name used in resource names and labels.
+# @section -- Naming, image and workload
 nameOverride: ""
 # -- Override the fully qualified release name.
+# @section -- Naming, image and workload
 fullnameOverride: ""
 
 image:
   # -- Image registry. Leave empty to use the repository as written (Docker Hub).
+  # @section -- Naming, image and workload
   registry: ""
   # -- Image repository.
+  # @section -- Naming, image and workload
   repository: nuwcdivnpt/stig-manager
   # -- Image tag. Defaults to the chart's appVersion.
+  # @section -- Naming, image and workload
   tag: ""
   # -- Pull by digest instead of tag (e.g. `sha256:abc...`). Wins over `tag`.
+  # @section -- Naming, image and workload
   digest: ""
   # -- Image pull policy.
+  # @section -- Naming, image and workload
   pullPolicy: IfNotPresent
 
 # -- Image pull secrets applied to the pod.
+# @section -- Naming, image and workload
 imagePullSecrets: []
 #  - name: regcred
 
 # -- Number of API replicas. The API is stateless; all state lives in MySQL.
+# @section -- Naming, image and workload
 replicaCount: 1
 
 # -- Deployment update strategy.
+# @section -- Naming, image and workload
 strategy:
   type: RollingUpdate
   rollingUpdate:
@@ -42,49 +52,62 @@ strategy:
     maxUnavailable: 0
 
 # -- How many old ReplicaSets to retain.
+# @section -- Naming, image and workload
 revisionHistoryLimit: 3
 
 serviceAccount:
   # -- Create a ServiceAccount for the pod.
+  # @section -- Naming, image and workload
   create: true
   # -- Name of the ServiceAccount. Generated from the release name when empty.
+  # @section -- Naming, image and workload
   name: ""
   # -- Extra annotations for the ServiceAccount.
+  # @section -- Naming, image and workload
   annotations: {}
   # -- Extra labels for the ServiceAccount.
+  # @section -- Naming, image and workload
   labels: {}
   # -- Mount a token into pods that use this ServiceAccount by default.
+  # @section -- Naming, image and workload
   automountServiceAccountToken: false
   # -- Image pull secrets attached to the ServiceAccount.
+  # @section -- Naming, image and workload
   imagePullSecrets: []
 
 # -- Mount the ServiceAccount token in the API pod. The application never calls
 # the Kubernetes API, so this stays off.
+# @section -- Naming, image and workload
 automountServiceAccountToken: false
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # Application configuration (STIGMAN_*)
-# ------------------------------------------------------------------------------
+# ==============================================================================
 
 # -- STIGMAN_CLASSIFICATION. Classification banner rendered by the web client.
 # One of: NONE, U, CUI, C, S, TS, SCI. Upstream default: U.
+# @section -- Application
 classification: U
 
 api:
   # -- STIGMAN_API_PORT. TCP port the API listens on. Also the container port.
+  # @section -- Application
   port: 54000
   # -- STIGMAN_API_ADDRESS. Listen address. Upstream default: 0.0.0.0.
+  # @section -- Application
   address: null
   # -- STIGMAN_API_MAX_JSON_BODY. Max application/json request body, in bytes.
   # Upstream default: 5242880.
+  # @section -- Application
   maxJsonBody: null
   # -- STIGMAN_API_MAX_UPLOAD. Max multipart/form-data upload, in bytes.
   # Upstream default: 1073741824.
+  # @section -- Application
   maxUpload: null
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # Connecting to an external MySQL
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # STIG Manager requires MySQL 8. This chart does not deploy one. Create the
 # schema and a user with full rights on it, then either:
 #
@@ -102,203 +125,265 @@ api:
 # its own and never reads `database.password`.
 database:
   # -- STIGMAN_DB_HOST. Hostname or IP of the MySQL server.
+  # @section -- Database
   host: mysql
   # -- STIGMAN_DB_PORT. MySQL TCP port.
+  # @section -- Database
   port: 3306
   # -- STIGMAN_DB_SCHEMA. Schema holding the STIG Manager objects.
+  # @section -- Database
   schema: stigman
   # -- STIGMAN_DB_USER. MySQL user.
+  # @section -- Database
   user: stigman
   # -- Password for `database.user`. Ignored when `existingSecret` is set.
+  # @section -- Database
   password: ""
   # -- Name of an existing Secret carrying the database credentials. Wins over
   # `database.password`; when set, no Secret is created by this chart.
+  # @section -- Database
   existingSecret: ""
   # -- Keys within the Secret (chart-managed or existing).
+  # @section -- Database
   secretKeys:
     # -- Key holding the database password (STIGMAN_DB_PASSWORD).
+    # @section -- Database
     password: db-password
     # -- Key holding the database TLS private key passphrase, if your tooling
     # stores one. Not consumed by the application today; kept so a single Secret
     # can carry it for use via `extraEnvVars`.
+    # @section -- Database
     dbTlsKeyPassphrase: db-tls-key-passphrase
     # -- Key holding the API server TLS private key passphrase
     # (STIGMAN_API_TLS_KEY_PASSPHRASE).
+    # @section -- Database
     apiTlsKeyPassphrase: api-tls-key-passphrase
   # -- STIGMAN_DB_MAX_CONNECTIONS. Connection pool size. Upstream default: 25.
+  # @section -- Database
   maxConnections: null
 
   # TLS to the database. Mount the PEM material from a Secret you manage; the
   # file names below are keys within that Secret.
   tls:
     # -- Enable TLS to MySQL. Requires `existingSecret`.
+    # @section -- Database
     enabled: false
     # -- Secret holding the database TLS material.
+    # @section -- Database
     existingSecret: ""
     # -- Where the material is mounted in the container.
+    # @section -- Database
     mountPath: /etc/stigman/db-tls
     # -- STIGMAN_DB_TLS_CA_FILE. Key in the Secret holding the CA certificate.
     # Setting this is what enables TLS connections to the database.
+    # @section -- Database
     caFile: ca.pem
     # -- STIGMAN_DB_TLS_CERT_FILE. Client certificate, for mTLS. Optional.
+    # @section -- Database
     certFile: ""
     # -- STIGMAN_DB_TLS_KEY_FILE. Client private key, for mTLS. Optional.
+    # @section -- Database
     keyFile: ""
     # -- Passphrase for the client private key. Stored under
     # `database.secretKeys.dbTlsKeyPassphrase` in the chart-managed Secret.
+    # @section -- Database
     keyPassphrase: ""
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # OIDC / authentication
-# ------------------------------------------------------------------------------
+# ==============================================================================
 oidc:
   # -- STIGMAN_OIDC_PROVIDER. Base URL of the OIDC issuer.
   # `/.well-known/openid-configuration` is appended when fetching metadata.
-  # e.g. https://keycloak.example.com/realms/stigman
+  # e.g. `https://keycloak.example.com/realms/stigman`
+  # @section -- OIDC
   provider: ""
   # -- STIGMAN_CLIENT_OIDC_PROVIDER. Web-client override of the issuer URL, for
   # split-horizon DNS where the browser and the API reach the IdP differently.
+  # @section -- OIDC
   clientProvider: null
   # -- STIGMAN_JWT_AUD_VALUE. Required `aud` claim value. Unset disables the check.
+  # @section -- OIDC
   audience: null
   # -- STIGMAN_JWKS_CACHE_MAX_AGE. Minutes before the JWKS cache is stale.
   # Upstream default: 10.
+  # @section -- OIDC
   jwksCacheMaxAge: null
   # Access-token claim names. Leave null to use the upstream defaults, which
   # match a stock Keycloak realm.
   claims:
     # -- STIGMAN_JWT_USERNAME_CLAIM. Upstream default: preferred_username.
+    # @section -- OIDC
     username: null
     # -- STIGMAN_JWT_NAME_CLAIM. Upstream default: name.
+    # @section -- OIDC
     name: null
     # -- STIGMAN_JWT_EMAIL_CLAIM. Upstream default: email.
+    # @section -- OIDC
     email: null
     # -- STIGMAN_JWT_PRIVILEGES_CLAIM. Upstream default: realm_access.roles.
+    # @section -- OIDC
     privileges: null
     # -- STIGMAN_JWT_SCOPE_CLAIM. Upstream default: scope.
+    # @section -- OIDC
     scope: null
     # -- STIGMAN_JWT_SERVICENAME_CLAIM. Upstream default: clientId.
+    # @section -- OIDC
     serviceName: null
     # -- STIGMAN_JWT_ASSERTION_CLAIM. Upstream default: jti.
+    # @section -- OIDC
     assertion: null
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # Reference web client
-# ------------------------------------------------------------------------------
+# ==============================================================================
 client:
   # -- STIGMAN_CLIENT_ID. OIDC clientId the web client authenticates with.
   # Upstream default: stig-manager.
+  # @section -- Web client
   id: stig-manager
   # -- STIGMAN_CLIENT_DISABLED. `true` stops the API serving the web client.
+  # @section -- Web client
   disabled: null
   # -- STIGMAN_CLIENT_DIRECTORY. Location of the client files inside the image.
+  # @section -- Web client
   directory: null
   # -- STIGMAN_CLIENT_API_BASE. Base URL for client → API requests, relative to
   # window.location. Upstream default: api.
+  # @section -- Web client
   apiBase: null
   # -- STIGMAN_CLIENT_SCOPE_PREFIX. Prefix added to each requested scope. Needed
   # by providers such as Entra ID (`api://<app-id>/`).
+  # @section -- Web client
   scopePrefix: null
   # -- STIGMAN_CLIENT_EXTRA_SCOPES. Space-separated extra OAuth2 scopes, e.g.
   # `offline_access` for Okta.
+  # @section -- Web client
   extraScopes: null
   # -- STIGMAN_CLIENT_REAUTH_ACTION. How to re-prompt on token expiry:
   # popup, iframe, tab or reload. Upstream default: popup.
+  # @section -- Web client
   reauthAction: null
   # -- STIGMAN_CLIENT_RESPONSE_MODE. Deprecated upstream. query or fragment.
+  # @section -- Web client
   responseMode: null
   # -- STIGMAN_CLIENT_USER_TIMEOUT. Idle minutes before a regular user must
   # re-authenticate. 0 disables idle detection. Upstream default: 60.
+  # @section -- Web client
   userTimeout: null
   # -- STIGMAN_CLIENT_ADMIN_TIMEOUT. Same, for admin users. Upstream default: 10.
+  # @section -- Web client
   adminTimeout: null
   # -- STIGMAN_CLIENT_STATE_EVENTS. Whether the client consumes server-sent
   # events about API state. Disable only to work around proxy buffering.
+  # @section -- Web client
   stateEvents: null
   # -- STIGMAN_CLIENT_STRICT_PKCE. Whether the client requires the provider to
   # advertise PKCE/S256 per RFC 8414.
+  # @section -- Web client
   strictPkce: null
   # -- STIGMAN_CLIENT_CONSOLE_MODE. Browser console verbosity. Upstream
   # default: production.
+  # @section -- Web client
   consoleMode: null
   # -- STIGMAN_CLIENT_DISPLAY_APPMANAGERS. Show application managers on the home
   # page.
+  # @section -- Web client
   displayAppManagers: null
   welcome:
     # -- STIGMAN_CLIENT_WELCOME_TITLE. Title of the Home tab welcome widget.
+    # @section -- Web client
     title: null
     # -- STIGMAN_CLIENT_WELCOME_MESSAGE. Body text of the welcome widget.
+    # @section -- Web client
     message: null
     # -- STIGMAN_CLIENT_WELCOME_LINK. Link rendered after the welcome message.
+    # @section -- Web client
     link: null
     # -- STIGMAN_CLIENT_WELCOME_IMAGE. URL of an externally hosted image. The
     # application does not serve this image itself.
+    # @section -- Web client
     image: null
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # SwaggerUI (/api-docs)
-# ------------------------------------------------------------------------------
+# ==============================================================================
 swagger:
   # -- STIGMAN_SWAGGER_ENABLED. Serve the SwaggerUI SPA at /api-docs.
   # Upstream default: false.
+  # @section -- SwaggerUI
   enabled: null
   # -- STIGMAN_SWAGGER_SERVER. API base URL as SwaggerUI should call it,
-  # e.g. https://stigman.example.com/api.
+  # e.g. `https://stigman.example.com/api`.
+  # @section -- SwaggerUI
   server: null
   # -- STIGMAN_SWAGGER_REDIRECT. OAuth2 redirect URL SwaggerUI sends to the IdP,
-  # e.g. https://stigman.example.com/api-docs/oauth2-redirect.html.
+  # e.g. `https://stigman.example.com/api-docs/oauth2-redirect.html`.
+  # @section -- SwaggerUI
   redirect: null
   # -- STIGMAN_SWAGGER_OIDC_PROVIDER. SwaggerUI override of the issuer URL.
+  # @section -- SwaggerUI
   oidcProvider: null
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # Documentation (/docs)
-# ------------------------------------------------------------------------------
+# ==============================================================================
 docs:
   # -- STIGMAN_DOCS_DISABLED. `true` stops the API serving the documentation.
+  # @section -- Documentation
   disabled: null
   # -- STIGMAN_DOCS_DIRECTORY. Location of the docs inside the image.
+  # @section -- Documentation
   directory: null
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # Logging and startup behaviour
-# ------------------------------------------------------------------------------
+# ==============================================================================
 logging:
   # -- STIGMAN_LOG_LEVEL. 1 (error) to 4 (debug). Upstream default: 3.
+  # @section -- Logging, startup and extra configuration
   level: null
   # -- STIGMAN_LOG_MODE. `combined` for one entry per request/response pair,
   # `separate` for two. Upstream default: combined.
+  # @section -- Logging, startup and extra configuration
   mode: null
 
 # -- STIGMAN_DEPENDENCY_RETRIES. Startup retries against MySQL and the OIDC
 # provider before giving up. Upstream default: 24.
+# @section -- Logging, startup and extra configuration
 dependencyRetries: null
 
 experimental:
   # -- STIGMAN_EXPERIMENTAL_APPDATA. Enable the AppData import/export endpoints.
+  # @section -- Logging, startup and extra configuration
   appData: null
   # -- STIGMAN_EXPERIMENTAL_LOGSTREAM. WebSocket log stream at /socket/.
   # Upstream default: true.
+  # @section -- Logging, startup and extra configuration
   logStream: null
 
 dev:
   # -- STIGMAN_DEV_ALLOW_INSECURE_TOKENS. Accept known-insecure JWT signing keys.
   # Development and testing only.
+  # @section -- Logging, startup and extra configuration
   allowInsecureTokens: null
   # -- STIGMAN_DEV_RESPONSE_VALIDATION. `none` or `logOnly`.
+  # @section -- Logging, startup and extra configuration
   responseValidation: null
   # -- STIGMAN_DEV_LOG_OPT_STATS. Track operation statistics for /op/appinfo.
+  # @section -- Logging, startup and extra configuration
   logOptStats: null
 
 # -- Raw STIGMAN_* passthrough, merged into the ConfigMap last and therefore
 # able to override anything above. Use for variables this chart does not model
 # yet. Keys must be the literal environment variable names.
+# @section -- Logging, startup and extra configuration
 extraConfig: {}
 #  STIGMAN_SOME_NEW_VAR: "value"
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # Custom CA certificates
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # The API must complete TLS to your OIDC provider (and optionally to MySQL). If
 # either presents a certificate from a private CA, the certificate chain has to
 # be inside the container. Both NODE_EXTRA_CA_CERTS and STIGMAN_OIDC_CA_CERTS
@@ -328,83 +413,113 @@ extraConfig: {}
 #     bundleKey: ca-bundle.pem      # the key within that ConfigMap
 trustedCAs:
   # -- Mount a CA bundle and point the application at it.
+  # @section -- Trusted CA certificates
   enabled: false
   # -- Map of name → PEM. Concatenated in key order into one bundle file.
+  # @section -- Trusted CA certificates
   certs: {}
   # -- Use an existing ConfigMap instead of `certs`. Mutually exclusive with
   # `existingSecret`.
+  # @section -- Trusted CA certificates
   existingConfigMap: ""
   # -- Use an existing Secret instead of `certs`. Mutually exclusive with
   # `existingConfigMap`.
+  # @section -- Trusted CA certificates
   existingSecret: ""
   # -- Key within the ConfigMap/Secret, and the file name once mounted.
+  # @section -- Trusted CA certificates
   bundleKey: ca-bundle.pem
   # -- Directory the bundle is mounted into.
+  # @section -- Trusted CA certificates
   mountPath: /etc/stigman/ca
   # -- Set NODE_EXTRA_CA_CERTS to the bundle (trust for all Node TLS clients).
+  # @section -- Trusted CA certificates
   setNodeExtraCaCerts: true
   # -- Set STIGMAN_OIDC_CA_CERTS to the bundle (trust for OIDC calls only).
+  # @section -- Trusted CA certificates
   setOidcCaCerts: true
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # TLS on the API listener
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # Only needed when the pod must serve HTTPS itself. Most deployments terminate
 # TLS at an ingress controller or a service mesh and leave this off.
 tls:
   # -- Serve HTTPS directly from the API container. Requires `existingSecret`.
+  # @section -- API TLS
   enabled: false
   # -- Secret holding the server certificate and key.
+  # @section -- API TLS
   existingSecret: ""
   # -- Where that Secret is mounted.
+  # @section -- API TLS
   mountPath: /etc/stigman/tls
   # -- STIGMAN_API_TLS_CERT_FILE. Key in the Secret holding the certificate.
+  # @section -- API TLS
   certFile: tls.crt
   # -- STIGMAN_API_TLS_KEY_FILE. Key in the Secret holding the private key.
+  # @section -- API TLS
   keyFile: tls.key
   # -- STIGMAN_API_TLS_KEY_PASSPHRASE, if the key is encrypted.
+  # @section -- API TLS
   keyPassphrase: ""
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # Service
-# ------------------------------------------------------------------------------
+# ==============================================================================
 service:
   # -- Service type.
+  # @section -- Service
   type: ClusterIP
   # -- Service port.
+  # @section -- Service
   port: 80
   # -- Target port. Defaults to the container's named `http` port.
+  # @section -- Service
   targetPort: ""
   # -- Node port, when `type` is NodePort.
+  # @section -- Service
   nodePort: null
   # -- Explicit clusterIP, or `None` for a headless Service.
+  # @section -- Service
   clusterIP: ""
   # -- LoadBalancer IP request.
+  # @section -- Service
   loadBalancerIP: ""
   # -- LoadBalancer implementation class.
+  # @section -- Service
   loadBalancerClass: ""
   # -- Source ranges permitted to reach a LoadBalancer Service.
+  # @section -- Service
   loadBalancerSourceRanges: []
   # -- externalTrafficPolicy for NodePort/LoadBalancer Services.
+  # @section -- Service
   externalTrafficPolicy: ""
   # -- Session affinity: None or ClientIP.
+  # @section -- Service
   sessionAffinity: ""
   # -- Session affinity tuning.
+  # @section -- Service
   sessionAffinityConfig: {}
   # -- IP family policy.
+  # @section -- Service
   ipFamilyPolicy: ""
   # -- IP families.
+  # @section -- Service
   ipFamilies: []
   # -- Extra Service annotations.
+  # @section -- Service
   annotations: {}
   # -- Extra Service labels.
+  # @section -- Service
   labels: {}
   # -- Additional Service ports, e.g. for a sidecar.
+  # @section -- Service
   extraPorts: []
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # Ingress (networking.k8s.io/v1 only)
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # STIG Manager serves everything from one origin, so a single `/` Prefix rule is
 # usually right. Split it only when a platform routes the sub-paths separately:
 #
@@ -419,40 +534,51 @@ service:
 # connections; with ingress-nginx that is the default.
 ingress:
   # -- Create an Ingress.
+  # @section -- Ingress
   enabled: false
   # -- ingressClassName.
+  # @section -- Ingress
   className: ""
   # -- Ingress annotations.
+  # @section -- Ingress
   annotations: {}
   # -- Ingress labels.
+  # @section -- Ingress
   labels: {}
   # -- Hosts and their paths. `host` is rendered through `tpl`.
+  # @section -- Ingress
   hosts:
     - host: stig-manager.local
       paths:
         - path: /
           pathType: Prefix
   # -- TLS blocks.
+  # @section -- Ingress
   tls: []
   #  - secretName: stig-manager-tls
   #    hosts:
   #      - stig-manager.local
   # -- Verbatim extra rules, appended to `rules`. Rendered through `tpl`.
+  # @section -- Ingress
   extraRules: []
   # -- Verbatim extra TLS blocks. Rendered through `tpl`.
+  # @section -- Ingress
   extraTls: []
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # NetworkPolicy
-# ------------------------------------------------------------------------------
+# ==============================================================================
 networkPolicy:
   # -- Create a NetworkPolicy for the API pod.
+  # @section -- NetworkPolicy
   enabled: false
   # -- Accept ingress from anywhere on the API port. When false, only
   # `allowedIngress` peers are accepted.
+  # @section -- NetworkPolicy
   allowAllIngress: false
   # -- Peers permitted to reach the API port: podSelector, namespaceSelector
   # and/or ipBlock entries, exactly as the NetworkPolicy API expects them.
+  # @section -- NetworkPolicy
   allowedIngress: []
   #  - namespaceSelector:
   #      matchLabels:
@@ -460,23 +586,31 @@ networkPolicy:
   #  - ipBlock:
   #      cidr: 10.0.0.0/8
   # -- Additional ports accepted alongside the API port.
+  # @section -- NetworkPolicy
   extraIngressPorts: []
   # -- Verbatim extra ingress rules.
+  # @section -- NetworkPolicy
   extraIngress: []
   # -- Permit all egress instead of enumerating destinations. Simplest option
   # when the OIDC provider lives outside the cluster.
+  # @section -- NetworkPolicy
   allowAllEgress: false
   egress:
     # -- Permit DNS to kube-dns.
+    # @section -- NetworkPolicy
     dns: true
     database:
       # -- Permit egress to the database.
+      # @section -- NetworkPolicy
       enabled: true
       # -- Destination peers. Defaults to 0.0.0.0/0 on the database port.
+      # @section -- NetworkPolicy
       to: []
       # -- Destination port. Defaults to `database.port`.
+      # @section -- NetworkPolicy
       port: null
     # -- Verbatim extra egress rules — the OIDC provider usually goes here.
+    # @section -- NetworkPolicy
     extra: []
     #  - to:
     #      - namespaceSelector:
@@ -486,52 +620,86 @@ networkPolicy:
     #      - port: 8443
     #        protocol: TCP
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # Pod placement and scheduling
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # -- Labels added to every object this chart renders.
+# @section -- Pod, container and scheduling
 commonLabels: {}
 # -- Annotations added to every object this chart renders.
+# @section -- Pod, container and scheduling
 commonAnnotations: {}
+# -- Annotations on the Deployment object itself (not the pod template). This is
+# where controllers that watch Deployments read their configuration — Stakater
+# Reloader, Argo CD sync options, Keel, and so on:
+#
+#   deploymentAnnotations:
+#     reloader.stakater.com/auto: "true"
+#
+# The chart already stamps checksum/config, checksum/secret and checksum/ca on
+# the pod template, so config it owns rolls pods without Reloader. Reloader earns
+# its keep for objects the chart references but does not render:
+# `database.existingSecret`, `extraEnvVarsCM`, `extraEnvVarsSecret`, and
+# `trustedCAs.existingConfigMap`/`existingSecret`. See the chart README.
+# @section -- Pod, container and scheduling
+deploymentAnnotations: {}
 # -- Extra pod annotations.
+# @section -- Pod, container and scheduling
 podAnnotations: {}
 # -- Extra pod labels.
+# @section -- Pod, container and scheduling
 podLabels: {}
 # -- PriorityClass for the pod.
+# @section -- Pod, container and scheduling
 priorityClassName: ""
 # -- Grace period on pod termination.
+# @section -- Pod, container and scheduling
 terminationGracePeriodSeconds: 30
 # -- Node selector.
+# @section -- Pod, container and scheduling
 nodeSelector: {}
 # -- Tolerations.
+# @section -- Pod, container and scheduling
 tolerations: []
 # -- Affinity rules.
+# @section -- Pod, container and scheduling
 affinity: {}
 # -- Topology spread constraints.
+# @section -- Pod, container and scheduling
 topologySpreadConstraints: []
 # -- Pod DNS policy.
+# @section -- Pod, container and scheduling
 dnsPolicy: ""
 # -- Pod DNS config.
+# @section -- Pod, container and scheduling
 dnsConfig: {}
 # -- Extra /etc/hosts entries.
+# @section -- Pod, container and scheduling
 hostAliases: []
 
 # -- Override the image's entrypoint. The image runs `node index.js` from
 # /home/node.
+# @section -- Pod, container and scheduling
 command: []
 # -- Override the arguments.
+# @section -- Pod, container and scheduling
 args: []
 # -- Container lifecycle hooks.
+# @section -- Pod, container and scheduling
 lifecycle: {}
 # -- Init containers. Rendered through `tpl`.
+# @section -- Pod, container and scheduling
 initContainers: []
 # -- Sidecar containers. Rendered through `tpl`.
+# @section -- Pod, container and scheduling
 sidecars: []
 # -- Extra container ports on the API container.
+# @section -- Pod, container and scheduling
 extraContainerPorts: []
 
 # -- Resource requests and limits. The API is a single Node process; give it
 # enough memory for the STIG library it loads at startup.
+# @section -- Pod, container and scheduling
 resources:
   requests:
     cpu: 100m
@@ -540,6 +708,7 @@ resources:
     memory: 1Gi
 
 # -- Pod-level security context.
+# @section -- Pod, container and scheduling
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 1000
@@ -550,6 +719,7 @@ podSecurityContext:
 
 # -- Container-level security context. `readOnlyRootFilesystem: true` requires
 # `tmpVolume.enabled` — Node writes its compile cache under /tmp.
+# @section -- Pod, container and scheduling
 containerSecurityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
@@ -558,25 +728,35 @@ containerSecurityContext:
     drop:
       - ALL
 
-# -- Writable /tmp, required by `readOnlyRootFilesystem`.
+# Writable /tmp, required by `readOnlyRootFilesystem`.
 tmpVolume:
+  # -- Mount an emptyDir at /tmp. Node writes its compile cache there, so
+  # `containerSecurityContext.readOnlyRootFilesystem` depends on this.
+  # @section -- Pod, container and scheduling
   enabled: true
   # -- emptyDir medium. Set to `Memory` for a tmpfs.
+  # @section -- Pod, container and scheduling
   medium: ""
   # -- Size limit for the emptyDir.
+  # @section -- Pod, container and scheduling
   sizeLimit: 256Mi
 
 # -- Extra volumes on the pod. Rendered through `tpl`.
+# @section -- Pod, container and scheduling
 extraVolumes: []
 # -- Extra volume mounts on the API container. Rendered through `tpl`.
+# @section -- Pod, container and scheduling
 extraVolumeMounts: []
 
 # -- Names of existing ConfigMaps to load wholesale as environment.
+# @section -- Pod, container and scheduling
 extraEnvVarsCM: []
 # -- Names of existing Secrets to load wholesale as environment.
+# @section -- Pod, container and scheduling
 extraEnvVarsSecret: []
 # -- Extra environment variables in raw `env:` form. Applied last, so these win
 # over everything else. Rendered through `tpl`.
+# @section -- Pod, container and scheduling
 extraEnvVars: []
 #  - name: STIGMAN_DB_TLS_KEY_PASSPHRASE
 #    valueFrom:
@@ -584,9 +764,9 @@ extraEnvVars: []
 #        name: stigman-db
 #        key: db-tls-key-passphrase
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # Probes
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # /api/op/state and /api/op/configuration are unauthenticated in the OpenAPI
 # specification, which is what makes them usable as probe targets. /api/op/state
 # answers even while the API is still waiting on its dependencies, so it is the
@@ -598,6 +778,10 @@ extraEnvVars: []
 #     custom:
 #       exec:
 #         command: [/bin/sh, -c, "..."]
+
+# -- Startup probe. Targets /api/op/configuration, which reflects database and
+# OIDC reachability. Set `custom` to replace the generated block entirely.
+# @section -- Probes
 startupProbe:
   enabled: true
   path: /api/op/configuration
@@ -608,6 +792,9 @@ startupProbe:
   failureThreshold: 30
   custom: {}
 
+# -- Readiness probe. Same target as the startup probe, so a pod that loses its
+# database or IdP leaves the Service endpoints.
+# @section -- Probes
 readinessProbe:
   enabled: true
   path: /api/op/configuration
@@ -618,6 +805,10 @@ readinessProbe:
   failureThreshold: 3
   custom: {}
 
+# -- Liveness probe. Targets /api/op/state, which answers even while the API is
+# still waiting on its dependencies — probing anything else would restart a pod
+# that is merely waiting for MySQL.
+# @section -- Probes
 livenessProbe:
   enabled: true
   path: /api/op/state
@@ -628,38 +819,49 @@ livenessProbe:
   failureThreshold: 3
   custom: {}
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # helm test
-# ------------------------------------------------------------------------------
+# ==============================================================================
 tests:
   # -- Render the `helm test` pod.
+  # @section -- Tests
   enabled: true
+  # -- Image the test pod runs. Needs nothing but curl.
+  # @section -- Tests
   image:
     repository: curlimages/curl
     tag: "8.11.1"
     pullPolicy: IfNotPresent
   # -- curl timeout, in seconds.
+  # @section -- Tests
   timeout: 10
+  # -- Pod-level security context for the test pod.
+  # @section -- Tests
   podSecurityContext:
     runAsNonRoot: true
     runAsUser: 65534
     seccompProfile:
       type: RuntimeDefault
+  # -- Container-level security context for the test pod.
+  # @section -- Tests
   containerSecurityContext:
     allowPrivilegeEscalation: false
     readOnlyRootFilesystem: true
     capabilities:
       drop:
         - ALL
+  # -- Resource requests and limits for the test pod.
+  # @section -- Tests
   resources: {}
 
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # Escape hatch
-# ------------------------------------------------------------------------------
+# ==============================================================================
 # -- Arbitrary manifests rendered alongside the chart's own. Each entry is passed
 # through `tpl`, so Helm templating works inside. Use this for anything the chart
 # deliberately does not model: Istio PeerAuthentication, Gateway API HTTPRoute,
 # ExternalSecret, ServiceMonitor, and so on.
+# @section -- Escape hatches
 extraManifests: []
 #  - apiVersion: security.istio.io/v1beta1
 #    kind: PeerAuthentication

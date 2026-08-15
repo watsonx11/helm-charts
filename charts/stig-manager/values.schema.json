@@ -302,6 +302,7 @@
     },
     "commonLabels": { "type": "object" },
     "commonAnnotations": { "type": "object" },
+    "deploymentAnnotations": { "type": "object" },
     "podAnnotations": { "type": "object" },
     "podLabels": { "type": "object" },
     "nodeSelector": { "type": "object" },

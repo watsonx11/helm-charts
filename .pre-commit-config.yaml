@@ -1,0 +1,189 @@
+# Pre-commit hooks for this chart repository.
+#
+# Order is deliberate: generate -> fix -> structural -> lint -> secrets ->
+# expensive helm. helm-docs runs first among file-writing hooks so that a
+# values.yaml change and the README it regenerates settle in two runs rather
+# than three.
+#
+# Two things about chart repositories shape everything here:
+#
+#   1. charts/*/templates/*.yaml are Go templates, not YAML. check-yaml and a
+#      raw kubeconform both choke on them. They are excluded and replaced by
+#      helm-native hooks that validate *rendered* output.
+#   2. Hooks fire on files; helm operates on directories. The local helm hooks
+#      map filenames up to the nearest Chart.yaml, so nothing here names a
+#      specific chart.
+#
+# Setup:
+#   brew install helm kubeconform
+#   pre-commit install && pre-commit install-hooks
+repos:
+  # --------------------------------------------------------------------------
+  # Cheap local policy checks, first so they fail fast.
+  # --------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: forbid-non-utf8
+        name: forbid non-UTF-8 files
+        entry: ./.pre_commit_config/check-utf8.sh
+        language: script
+        files: \.(ya?ml|json|md|sh|txt|tpl|gotmpl|toml)$|(^|/)[^./]+$
+
+      - id: chart-version-bump
+        name: chart version bumped
+        entry: ./.pre_commit_config/chart-version-bump.sh
+        language: script
+        require_serial: true
+        files: ^charts/[^/]+/.+
+        exclude: |
+          (?x)^charts/[^/]+/(
+            README\.md|
+            \.helmignore|
+            ci/.*
+          )$
+
+  # --------------------------------------------------------------------------
+  # Generate: helm-docs writes charts/*/README.md from README.md.gotmpl.
+  # It must precede every whitespace fixer, or its output needs another pass.
+  #
+  # helm-docs-built (language: golang) rather than helm-docs-container: the
+  # container hook's entry is jnorwood/helm-docs:latest, which `rev:` does not
+  # pin, leaving an unpinned dependency inside a pinned repo.
+  # --------------------------------------------------------------------------
+  - repo: https://github.com/norwoodj/helm-docs
+    rev: v1.14.2
+    hooks:
+      - id: helm-docs-built
+        # Upstream omits pass_filenames, so matched paths arrive as positional
+        # arguments and helm-docs treats them as chart search roots.
+        pass_filenames: false
+        # Upstream's regex is unanchored and matched with re.search, so its
+        # `values\.yaml$` also matches ci/full-values.yaml. Anchor it.
+        files: ^charts/[^/]+/(Chart\.yaml|values\.yaml|README\.md\.gotmpl)$
+        args:
+          - --chart-search-root=charts
+          - --sort-values-order=file
+        # NOT --documentation-strict-mode: in v1.14.2 it reports every value as
+        # undocumented regardless of its `# --` annotation, and on that error it
+        # *skips* the chart — so the README would silently stop regenerating.
+        # Revisit when upstream fixes it.
+
+  # --------------------------------------------------------------------------
+  # Fix and structural checks.
+  # --------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: fix-byte-order-marker
+      - id: mixed-line-ending
+        args:
+          - --fix=lf
+      - id: check-yaml
+        args:
+          - --allow-multiple-documents
+        # The critical adaptation: chart templates are Go templates. PyYAML
+        # cannot parse `{{- if .Values.foo }}` and never will.
+        exclude: ^charts/[^/]+/templates/.*
+      - id: check-json
+      # Deliberately NOT pretty-format-json: values.schema.json is written in a
+      # compact one-key-per-line style, and reformatting it would produce a huge
+      # permanent diff for no gain.
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-symlinks
+      - id: destroyed-symlinks
+      - id: forbid-new-submodules
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args:
+          - --markdown-linebreak-ext=md
+
+  # --------------------------------------------------------------------------
+  # Lint.
+  # --------------------------------------------------------------------------
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.49.1
+    hooks:
+      - id: markdownlint
+        args:
+          - --config
+          - .pre_commit_config/.markdownlint.yaml
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        # -x so it follows `. lib-chart-dirs.sh` and actually checks the helper;
+        # -P SCRIPTDIR because the hook runs from the repo root, so a source
+        # path relative to the script would otherwise not resolve.
+        args:
+          - -x
+          - -P
+          - SCRIPTDIR
+
+  # yamllint is scoped tightly and never sees templates/. It is here for exactly
+  # one rule: key-duplicates. check-yaml uses PyYAML, which silently last-wins on
+  # a duplicated key, and Helm does the same — so in a 700-line values.yaml a
+  # duplicate is invisible. Nothing else in this config catches it.
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        # No --strict: line-length is configured as a warning on purpose, and
+        # --strict would turn every warning into a failure.
+        args:
+          - --config-file
+          - .pre_commit_config/.yamllint.yaml
+        files: |
+          (?x)^(
+            charts/[^/]+/(Chart\.yaml|values\.yaml|ci/.*\.ya?ml)|
+            \.pre-commit-config\.yaml|
+            \.pre_commit_config/.*\.ya?ml
+          )$
+
+  # --------------------------------------------------------------------------
+  # Secrets.
+  # --------------------------------------------------------------------------
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      # Staged changes only — what actually runs on `git commit`.
+      - id: gitleaks
+      # Whole worktree, on demand:
+      #   pre-commit run --hook-stage manual gitleaks-full
+      - id: gitleaks
+        alias: gitleaks-full
+        name: gitleaks (full worktree scan)
+        stages: [manual]
+        pass_filenames: false
+        always_run: true
+        # entry is overridden wholesale: the staged hook's entry is
+        # `gitleaks git --pre-commit --staged ...`, and the worktree scan is a
+        # different subcommand, not extra flags on that one.
+        entry: gitleaks dir --redact --verbose .
+
+  # --------------------------------------------------------------------------
+  # Helm. Slowest, so last. Serial because each invocation shells out to helm
+  # once per chart per ci values file.
+  # --------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: helm-lint
+        name: helm lint --strict
+        entry: ./.pre_commit_config/helm-lint.sh
+        language: script
+        require_serial: true
+        files: ^charts/[^/]+/.+
+        exclude: ^charts/[^/]+/README\.md(\.gotmpl)?$
+
+      - id: helm-kubeconform
+        name: helm template | kubeconform
+        entry: ./.pre_commit_config/helm-kubeconform.sh
+        language: script
+        require_serial: true
+        files: ^charts/[^/]+/.+
+        exclude: ^charts/[^/]+/README\.md(\.gotmpl)?$

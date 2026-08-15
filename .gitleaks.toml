@@ -1,0 +1,27 @@
+# gitleaks configuration.
+#
+# The upstream rule set, unmodified. Verified against the whole worktree and
+# against git history: nothing in this repository is currently flagged, so there
+# is no allowlist. An allowlist that is not earning its place only weakens the
+# scanner silently.
+#
+# The repository does publish deliberate fake credentials — `not-a-real-password`
+# in charts/*/ci/*.yaml and `correct-horse-battery-staple` in the chart READMEs —
+# but none of them trip a default rule (both are low-entropy and lack the keyword
+# context the generic rules require). The PEM blocks in ci/full-values.yaml are
+# CERTIFICATEs, not private keys, which the default rules do not flag either.
+#
+# If a future placeholder does fire, add a narrow stanza pairing a path with the
+# literal rather than allowlisting the path or the rule wholesale:
+#
+#   [[allowlists]]
+#   description = "Placeholder database password in chart CI values files"
+#   condition = "AND"
+#   paths = ['''^charts/[^/]+/ci/.*\.ya?ml$''']
+#   regexes = ['''not-a-real-password''']
+#
+# Verify the whole worktree with:
+#   pre-commit run --hook-stage manual gitleaks-full
+
+[extend]
+useDefault = true

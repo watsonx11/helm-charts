@@ -223,6 +223,8 @@ commonLabels:
   example.com/owner: platform
 commonAnnotations:
   example.com/change-request: CR-1234
+deploymentAnnotations:
+  reloader.stakater.com/auto: "true"
 podAnnotations:
   example.com/scrape: "true"
 podLabels:
@@ -270,7 +272,10 @@ lifecycle:
 initContainers:
   - name: wait-for-db
     image: busybox:1.36
-    command: ["sh", "-c", "until nc -z {{ .Values.database.host }} {{ .Values.database.port }}; do sleep 2; done"]
+    command:
+      - sh
+      - -c
+      - "until nc -z {{ .Values.database.host }} {{ .Values.database.port }}; do sleep 2; done"
     securityContext:
       allowPrivilegeEscalation: false
       readOnlyRootFilesystem: true

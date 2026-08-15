@@ -1,0 +1,440 @@
+{{/*
+README.md is GENERATED from this file by helm-docs. Edit this template, never
+the README.
+
+Literal Go template expressions that must survive into the rendered README are
+wrapped in a backquoted string action:
+
+    {{ `{{ include "chart.fullname" . }}` }}
+
+helm-docs executes this file through text/template, so an unescaped
+`{{ include ... }}` would be evaluated here (and fail — `include` is a Helm
+function, not a text/template one) instead of being printed.
+*/ -}}
+{{ template "chart.header" . }}
+
+A Helm chart for [STIG Manager](https://github.com/NUWCDIVNPT/stig-manager) — an
+API and web client for managing the assessment of information systems against
+DISA Security Technical Implementation Guides (STIGs).
+
+{{/* One badge per line: joined with a space they form a single 195-char line
+     with a wrappable break in it, which trips markdownlint's MD013. */ -}}
+{{ template "chart.versionBadge" . }}
+{{ template "chart.appVersionBadge" . }}
+
+{{ template "chart.homepageLine" . }}
+
+## Scope
+
+This chart deploys **the STIG Manager application only**. Deliberately out of
+scope:
+
+- **No database.** STIG Manager requires MySQL 8. Point `database.*` at one you
+  already run — an operator-managed cluster, a cloud instance, a StatefulSet in
+  a neighbouring namespace. Bundling a database would make the chart's lifecycle
+  the database's lifecycle, which is the wrong trade for a production
+  dependency.
+- **No service mesh, Gateway API, external-dns, or secret-manager objects.** The
+  chart renders a plain `networking.k8s.io/v1` Ingress and nothing else.
+  Anything platform-specific goes through [`extraManifests`](#extramanifests) or
+  your own overlay.
+
+What the chart does own: the Deployment, Service, ServiceAccount,
+the `STIGMAN_*`
+ConfigMap, an optional Secret, optional Ingress and NetworkPolicy, and
+first-class handling of custom CA certificates.
+
+## Requirements
+
+{{ template "chart.kubeVersionLine" . }}
+
+| Requirement   | Notes                                                              |
+| ------------- | ------------------------------------------------------------------ |
+| MySQL         | 8.x, reachable from the pod, with a schema and a user that owns it |
+| OIDC provider | Keycloak, Okta, Entra ID, … issuing JWTs the API can validate      |
+
+## Install
+
+```sh
+helm install stig-manager ./charts/stig-manager \
+  --namespace stig-manager --create-namespace \
+  --set database.host=mysql.data.svc.cluster.local \
+  --set database.user=stigman \
+  --set database.schema=stigman \
+  --set database.password=... \
+  --set oidc.provider=https://keycloak.example.com/realms/stigman
+```
+
+Then verify:
+
+```sh
+helm test stig-manager -n stig-manager
+```
+
+## Connecting to an external MySQL
+
+Create the schema and a user with full rights on it:
+
+```sql
+CREATE DATABASE stigman;
+CREATE USER 'stigman'@'%' IDENTIFIED BY '...';
+GRANT ALL PRIVILEGES ON stigman.* TO 'stigman'@'%';
+```
+
+STIG Manager migrates its own schema on startup, so an empty database is the
+expected starting point.
+
+Supply the password one of two ways.
+
+**Chart-managed Secret** — fine for `helm install` driven by a values file you
+already keep encrypted:
+
+```yaml
+database:
+  host: mysql.data.svc.cluster.local
+  schema: stigman
+  user: stigman
+  password: correct-horse-battery-staple
+```
+
+**Existing Secret** — the right choice with External Secrets, SOPS, or a
+Vault/OpenBao injector. `database.existingSecret` always wins: when it is set
+the chart renders no Secret of its own and never reads `database.password`.
+Key names are values too, so a Secret produced by someone else is consumable
+unchanged:
+
+```yaml
+database:
+  host: mysql.data.svc.cluster.local
+  existingSecret: stigman-db-credentials
+  secretKeys:
+    password: mysql_password        # whatever key that Secret actually uses
+```
+
+### TLS to the database
+
+Mount the PEM material from a Secret you manage; the file names are keys within
+it.
+
+```yaml
+database:
+  tls:
+    enabled: true
+    existingSecret: stigman-db-tls
+    caFile: ca.pem                  # STIGMAN_DB_TLS_CA_FILE — enables TLS
+    certFile: client-cert.pem       # optional, for mTLS
+    keyFile: client-key.pem         # optional, for mTLS
+```
+
+Upstream exposes no environment variable for a database key passphrase. If your
+key is encrypted, wire the variable yourself through `extraEnvVars`; the chart
+keeps a `database.secretKeys.dbTlsKeyPassphrase` slot so one Secret can still
+carry it.
+
+## Custom CA certificates
+
+The API completes TLS to the OIDC provider (and optionally to MySQL) itself. If
+either presents a certificate from a private CA, that chain has to be inside the
+container — otherwise the API never becomes available and
+`/api/op/configuration` reports the OIDC provider as unreachable.
+
+Both `NODE_EXTRA_CA_CERTS` and `STIGMAN_OIDC_CA_CERTS` take exactly **one** file
+path, so every certificate supplied here is concatenated into a single bundle.
+
+**Inline PEMs** — the chart creates the ConfigMap:
+
+```yaml
+trustedCAs:
+  enabled: true
+  certs:
+    01-corporate-root: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+    02-corporate-intermediate: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+```
+
+Keys are concatenated in sorted order, so number them if chain order matters to
+your tooling.
+
+**Existing ConfigMap or Secret** — e.g. a trust-manager `Bundle` or a
+cert-manager-issued CA:
+
+```yaml
+trustedCAs:
+  enabled: true
+  existingConfigMap: corporate-ca-bundle
+  bundleKey: ca-bundle.pem          # the key inside that ConfigMap
+```
+
+Either way the bundle lands at
+`{{ `{{ trustedCAs.mountPath }}/{{ trustedCAs.bundleKey }}` }}`
+(`/etc/stigman/ca/ca-bundle.pem` by default) and both variables point at it.
+Each can be suppressed independently with
+`trustedCAs.setNodeExtraCaCerts: false` / `trustedCAs.setOidcCaCerts: false`.
+
+## Ingress
+
+STIG Manager serves the whole application from one origin, so a single `/`
+Prefix rule is normally right. The routes it exposes are:
+
+| Path        | Serves                                          |
+| ----------- | ----------------------------------------------- |
+| `/`         | reference web client                            |
+| `/api`      | the API                                         |
+| `/docs`     | project documentation                           |
+| `/api-docs` | SwaggerUI (only when `swagger.enabled`)         |
+| `/socket/`  | log-stream WebSocket (`experimental.logStream`) |
+
+Split them only if your platform routes sub-paths separately:
+
+```yaml
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: stigman.example.com
+      paths:
+        - {path: /,         pathType: Prefix}
+        - {path: /api,      pathType: Prefix}
+        - {path: /docs,     pathType: Prefix}
+        - {path: /api-docs, pathType: Prefix}
+        - {path: /socket,   pathType: Prefix}
+  tls:
+    - secretName: stigman-tls
+      hosts: [stigman.example.com]
+```
+
+`/socket/` requires an ingress controller that upgrades WebSocket connections;
+with ingress-nginx that is the default. Also set `swagger.server` and
+`swagger.redirect` to the externally visible URLs, otherwise SwaggerUI's OAuth2
+flow redirects to the wrong host.
+
+## Probes
+
+The OpenAPI specification declares no global `security`, which makes these two
+endpoints unauthenticated and therefore usable as probe targets:
+
+- **`/api/op/state`** — answers even while the API is still waiting on its
+  dependencies, so it is the liveness target. Probing anything else would
+  restart a pod that is merely waiting for MySQL.
+- **`/api/op/configuration`** — reflects database and OIDC reachability, so it
+  is the readiness and startup target.
+
+Any probe can be replaced wholesale:
+
+```yaml
+livenessProbe:
+  custom:
+    exec:
+      command: [/bin/sh, -c, "..."]
+```
+
+## extraManifests
+
+Anything the chart deliberately does not model goes here. Each entry is rendered
+through `tpl`, so chart helpers and `.Release` are available:
+
+```yaml
+extraManifests:
+  - apiVersion: security.istio.io/v1beta1
+    kind: PeerAuthentication
+    metadata:
+      name: '{{ `{{ include "stig-manager.fullname" . }}` }}'
+      namespace: '{{ `{{ .Release.Namespace }}` }}'
+    spec:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: stig-manager
+      mtls:
+        mode: STRICT
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: '{{ `{{ include "stig-manager.fullname" . }}` }}'
+    spec:
+      parentRefs:
+        - name: public-gateway
+          namespace: istio-system
+      hostnames: [stigman.example.com]
+      rules:
+        - backendRefs:
+            - name: '{{ `{{ include "stig-manager.fullname" . }}` }}'
+              port: 80
+```
+
+## Security context
+
+Defaults run the pod as uid/gid 1000 (`USER node` in the upstream image) with
+`runAsNonRoot`, `readOnlyRootFilesystem`, all capabilities dropped and the
+`RuntimeDefault` seccomp profile.
+
+`readOnlyRootFilesystem: true` depends on `tmpVolume.enabled` — Node writes its
+compile cache under `/tmp`. Disabling the emptyDir without also relaxing the
+read-only root filesystem will crash-loop the container.
+
+## Labels and annotations
+
+Four values, at three scopes:
+
+| Value | Lands on |
+| --- | --- |
+| `commonLabels` / `commonAnnotations` | every object the chart renders |
+| `deploymentAnnotations` | the Deployment object only |
+| `podLabels` / `podAnnotations` | the pod template only |
+
+`podLabels` never feeds `spec.selector.matchLabels` — the selector is only
+`app.kubernetes.io/name` plus `app.kubernetes.io/instance`. Deployment selectors
+are immutable after creation, so keeping them separate means you can add or
+change pod labels on an existing release without the upgrade failing.
+
+Annotation values must be strings. In a values file write `"true"`, not `true`;
+on the command line use `--set-string`.
+
+### The namespace is not one of them
+
+This chart renders no Namespace object, so nothing here labels the namespace —
+`commonLabels` reaches every object the chart *renders*, and the namespace is
+not one. `helm install --create-namespace` produces a bare namespace carrying
+only `kubernetes.io/metadata.name`.
+
+That is deliberate. Namespace labels are cluster-policy concerns — Pod Security
+Admission, service-mesh enrolment, network-policy tiers — they usually outlive
+any one release, and a namespace commonly hosts several. Owning the Namespace in
+the chart would also mean `helm uninstall` deletes it
+*and everything inside it*, including a database that happens to share it.
+
+Label it wherever you create it. Declaratively, alongside the release:
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: stig-manager
+  labels:
+    istio.io/dataplane-mode: ambient
+    pod-security.kubernetes.io/enforce: restricted
+```
+
+Or imperatively, against a namespace that already exists:
+
+```sh
+kubectl label namespace stig-manager istio.io/dataplane-mode=ambient
+```
+
+The chart's defaults already satisfy the `restricted` Pod Security Standard —
+non-root uid 1000, no privilege escalation, all capabilities dropped, and the
+`RuntimeDefault` seccomp profile — so enforcing it on the namespace needs no
+values changes.
+
+### Stakater Reloader
+
+Reloader watches Deployments, so its annotations go in `deploymentAnnotations`:
+
+```yaml
+deploymentAnnotations:
+  reloader.stakater.com/auto: "true"
+```
+
+Putting them in `commonAnnotations` also works — Reloader still sees them on the
+Deployment — but they get stamped on the Service, ConfigMaps, Ingress and test
+pod too, where nothing reads them.
+
+**You may not need it.** The chart stamps `checksum/config`, `checksum/secret`
+and `checksum/ca` on the pod template, so any change to config the chart *owns*
+already rolls the pods on `helm upgrade`.
+
+Reloader earns its keep for objects the chart references but does not render,
+which no checksum can cover — above all a `database.existingSecret` whose
+password External Secrets rotates out of band, with no `helm upgrade` to trigger
+a roll:
+
+| Referenced, not rendered |
+| --- |
+| `database.existingSecret` |
+| `extraEnvVarsCM` / `extraEnvVarsSecret` |
+| `trustedCAs.existingConfigMap` / `existingSecret` |
+| `database.tls.existingSecret`, `tls.existingSecret` |
+
+`reloader.stakater.com/auto: "true"` covers everything mounted or referenced as
+env. To scope it to the rotating Secret alone:
+
+```yaml
+deploymentAnnotations:
+  secret.reloader.stakater.com/reload: "stigman-db-credentials"
+```
+
+Reloader is not a chart dependency — it has to be installed in the cluster
+already. Without it the annotation is inert, not an error.
+
+## Application configuration
+
+Every key below maps to a `STIGMAN_*` environment variable. **Keys left `null`
+are omitted from the ConfigMap entirely**, so the application's own default
+applies — see the inline comments in `values.yaml` for what each default is.
+
+| Key                                                                                              | Environment variable                                                                                              |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `classification`                                                                                 | `STIGMAN_CLASSIFICATION`                                                                                          |
+| `api.port` / `api.address` / `api.maxJsonBody` / `api.maxUpload`                                 | `STIGMAN_API_PORT` / `_ADDRESS` / `_MAX_JSON_BODY` / `_MAX_UPLOAD`                                                |
+| `database.host` / `port` / `schema` / `user` / `maxConnections`                                  | `STIGMAN_DB_HOST` / `_PORT` / `_SCHEMA` / `_USER` / `_MAX_CONNECTIONS`                                            |
+| `database.password` or `database.existingSecret`                                                 | `STIGMAN_DB_PASSWORD` (via `secretKeyRef`)                                                                        |
+| `database.tls.caFile` / `certFile` / `keyFile`                                                   | `STIGMAN_DB_TLS_CA_FILE` / `_CERT_FILE` / `_KEY_FILE`                                                             |
+| `oidc.provider` / `clientProvider` / `audience` / `jwksCacheMaxAge`                              | `STIGMAN_OIDC_PROVIDER` / `STIGMAN_CLIENT_OIDC_PROVIDER` / `STIGMAN_JWT_AUD_VALUE` / `STIGMAN_JWKS_CACHE_MAX_AGE` |
+| `oidc.claims.username` / `name` / `email` / `privileges` / `scope` / `serviceName` / `assertion` | `STIGMAN_JWT_*_CLAIM`                                                                                             |
+| `client.id` / `disabled` / `directory` / `apiBase` / `scopePrefix` / `extraScopes`               | `STIGMAN_CLIENT_ID` / `_DISABLED` / `_DIRECTORY` / `_API_BASE` / `_SCOPE_PREFIX` / `_EXTRA_SCOPES`                |
+| `client.reauthAction` / `responseMode` / `userTimeout` / `adminTimeout`                          | `STIGMAN_CLIENT_REAUTH_ACTION` / `_RESPONSE_MODE` / `_USER_TIMEOUT` / `_ADMIN_TIMEOUT`                            |
+| `client.stateEvents` / `strictPkce` / `consoleMode` / `displayAppManagers`                       | `STIGMAN_CLIENT_STATE_EVENTS` / `_STRICT_PKCE` / `_CONSOLE_MODE` / `_DISPLAY_APPMANAGERS`                         |
+| `client.welcome.title` / `message` / `link` / `image`                                            | `STIGMAN_CLIENT_WELCOME_*`                                                                                        |
+| `swagger.enabled` / `server` / `redirect` / `oidcProvider`                                       | `STIGMAN_SWAGGER_*`                                                                                               |
+| `docs.disabled` / `docs.directory`                                                               | `STIGMAN_DOCS_DISABLED` / `_DIRECTORY`                                                                            |
+| `logging.level` / `logging.mode`                                                                 | `STIGMAN_LOG_LEVEL` / `STIGMAN_LOG_MODE`                                                                          |
+| `dependencyRetries`                                                                              | `STIGMAN_DEPENDENCY_RETRIES`                                                                                      |
+| `experimental.appData` / `experimental.logStream`                                                | `STIGMAN_EXPERIMENTAL_APPDATA` / `_LOGSTREAM`                                                                     |
+| `dev.allowInsecureTokens` / `responseValidation` / `logOptStats`                                 | `STIGMAN_DEV_*`                                                                                                   |
+| `tls.certFile` / `keyFile` / `keyPassphrase`                                                     | `STIGMAN_API_TLS_CERT_FILE` / `_KEY_FILE` / `_KEY_PASSPHRASE`                                                     |
+| `trustedCAs.*`                                                                                   | `NODE_EXTRA_CA_CERTS`, `STIGMAN_OIDC_CA_CERTS`                                                                    |
+| `extraConfig`                                                                                    | raw `STIGMAN_*` passthrough, merged last                                                                          |
+
+`extraConfig` exists so a variable upstream adds tomorrow does not require
+a chart change:
+
+```yaml
+extraConfig:
+  STIGMAN_SOME_NEW_VAR: "value"
+```
+
+### Environment precedence
+
+Later wins:
+
+1. `envFrom` the chart's ConfigMap
+2. `envFrom` each `extraEnvVarsCM`
+3. `envFrom` each `extraEnvVarsSecret`
+4. inline `env` — `STIGMAN_DB_PASSWORD`, CA paths, TLS file paths
+5. `extraEnvVars`
+
+## Upgrading
+
+The API migrates its own MySQL schema on startup. **Back the database up before
+a major appVersion bump** — migrations are not reversible by downgrading the
+image.
+
+## Development
+
+```shell
+pre-commit run --all-files
+```
+
+`ci/default-values.yaml` is the minimal install; `ci/full-values.yaml` turns on
+every optional feature so that `helm template` exercises every branch. Both are
+linted and rendered by the `helm-lint` and `helm-kubeconform` hooks.
+
+{{ template "chart.sourcesSection" . }}
+
+{{ template "chart.maintainersSection" . }}
+
+{{ template "chart.valuesSection" . }}

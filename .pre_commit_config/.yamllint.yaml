@@ -1,0 +1,32 @@
+# .yamllint.yaml
+#
+# Scoped deliberately narrowly (see .pre-commit-config.yaml): Chart.yaml,
+# values.yaml, ci/* and this repo's own config. Never charts/*/templates/*,
+# which are Go templates rather than YAML.
+#
+# The rule that earns this hook its place is key-duplicates. PyYAML (what
+# check-yaml uses) and Helm both silently last-wins on a duplicated mapping key,
+# so in a 700-line values.yaml a duplicate is invisible until something quietly
+# does the wrong thing.
+extends: relaxed
+
+rules:
+  key-duplicates: enable
+  trailing-spaces: enable
+  new-line-at-end-of-file: enable
+
+  line-length:
+    max: 100
+    level: warning
+    allow-non-breakable-words: true
+
+  # helm-docs annotations are written `# -- description`, one space from the
+  # comment marker.
+  comments:
+    min-spaces-from-content: 1
+
+  # Chart files conventionally omit the leading `---`.
+  document-start: disable
+
+  # Existing chart style mixes list indentation; not worth churning.
+  indentation: disable
