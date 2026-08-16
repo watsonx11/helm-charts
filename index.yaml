@@ -5,6 +5,57 @@ entries:
       artifacthub.io/category: security
       artifacthub.io/changes: |
         - kind: added
+          description: MIT LICENSE, backing the license this chart already declared
+        - kind: changed
+          description: README documents installing from the published chart repository
+        - kind: fixed
+          description: extraManifests examples use current CRD apiVersions
+      artifacthub.io/containsSecurityUpdates: "false"
+      artifacthub.io/images: |
+        - name: stig-manager
+          image: nuwcdivnpt/stig-manager:1.6.15
+      artifacthub.io/license: MIT
+      artifacthub.io/links: |
+        - name: Upstream project
+          url: https://github.com/NUWCDIVNPT/stig-manager
+        - name: Documentation
+          url: https://stig-manager.readthedocs.io/
+        - name: Environment variable reference
+          url: https://stig-manager.readthedocs.io/en/latest/installation-and-setup/envvars.html
+      artifacthub.io/prerelease: "false"
+    apiVersion: v2
+    appVersion: 1.6.15
+    created: "2026-08-16T16:22:58.420093329Z"
+    description: 'STIG Manager — an API and web client for managing the assessment
+      of information systems against DISA Security Technical Implementation Guides
+      (STIGs). This chart deploys the application only; it expects an externally managed
+      MySQL database and an externally managed OIDC provider. '
+    digest: e3fd92da82d189d8e7cc2529f3688c44d24b58d9ecb6dce840ec895e95a49652
+    home: https://github.com/NUWCDIVNPT/stig-manager
+    keywords:
+    - stig
+    - stig-manager
+    - disa
+    - compliance
+    - security
+    - rmf
+    - ckl
+    kubeVersion: '>=1.25.0-0'
+    maintainers:
+    - name: watsonx11
+      url: https://github.com/watsonx11
+    name: stig-manager
+    sources:
+    - https://github.com/NUWCDIVNPT/stig-manager
+    - https://github.com/NUWCDIVNPT/stig-manager/pkgs/container/stig-manager
+    type: application
+    urls:
+    - https://github.com/watsonx11/helm-charts/releases/download/stig-manager-0.2.1/stig-manager-0.2.1.tgz
+    version: 0.2.1
+  - annotations:
+      artifacthub.io/category: security
+      artifacthub.io/changes: |
+        - kind: added
           description: deploymentAnnotations value for controllers that watch Deployments
         - kind: added
           description: ServiceAccount and helm test connection templates
@@ -50,4 +101,4 @@ entries:
     urls:
     - https://github.com/watsonx11/helm-charts/releases/download/stig-manager-0.2.0/stig-manager-0.2.0.tgz
     version: 0.2.0
-generated: "2026-08-16T13:12:42.717041053Z"
+generated: "2026-08-16T16:22:58.420100197Z"
