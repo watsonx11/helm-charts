@@ -433,64 +433,64 @@ linted and rendered by the `helm-lint` and `helm-kubeconform` hooks.
 
 ### Naming, image and workload
 
-| Key                                         | Type   | Default                                                                      | Description                                                                                                       |
-| ------------------------------------------- | ------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| nameOverride                                | string | `""`                                                                         | Override the chart name used in resource names and labels.                                                        |
-| fullnameOverride                            | string | `""`                                                                         | Override the fully qualified release name.                                                                        |
-| image.registry                              | string | `""`                                                                         | Image registry. Leave empty to use the repository as written (Docker Hub).                                        |
-| image.repository                            | string | `"nuwcdivnpt/stig-manager"`                                                  | Image repository.                                                                                                 |
-| image.tag                                   | string | `""`                                                                         | Image tag. Defaults to the chart's appVersion.                                                                    |
-| image.digest                                | string | `""`                                                                         | Pull by digest instead of tag (e.g. `sha256:abc...`). Wins over `tag`.                                            |
-| image.pullPolicy                            | string | `"IfNotPresent"`                                                             | Image pull policy.                                                                                                |
-| imagePullSecrets                            | list   | `[]`                                                                         | Image pull secrets applied to the pod.                                                                            |
-| replicaCount                                | int    | `1`                                                                          | Number of API replicas. The API is stateless; all state lives in MySQL.                                           |
-| strategy                                    | object | `{"rollingUpdate":{"maxSurge":1,"maxUnavailable":0},"type":"RollingUpdate"}` | Deployment update strategy.                                                                                       |
-| revisionHistoryLimit                        | int    | `3`                                                                          | How many old ReplicaSets to retain.                                                                               |
-| serviceAccount.create                       | bool   | `true`                                                                       | Create a ServiceAccount for the pod.                                                                              |
-| serviceAccount.name                         | string | `""`                                                                         | Name of the ServiceAccount. Generated from the release name when empty.                                           |
-| serviceAccount.annotations                  | object | `{}`                                                                         | Extra annotations for the ServiceAccount.                                                                         |
-| serviceAccount.labels                       | object | `{}`                                                                         | Extra labels for the ServiceAccount.                                                                              |
-| serviceAccount.automountServiceAccountToken | bool   | `false`                                                                      | Mount a token into pods that use this ServiceAccount by default.                                                  |
-| serviceAccount.imagePullSecrets             | list   | `[]`                                                                         | Image pull secrets attached to the ServiceAccount.                                                                |
-| automountServiceAccountToken                | bool   | `false`                                                                      | Mount the ServiceAccount token in the API pod. The application never calls the Kubernetes API, so this stays off. |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| nameOverride | string | `""` | Override the chart name used in resource names and labels. |
+| fullnameOverride | string | `""` | Override the fully qualified release name. |
+| image.registry | string | `""` | Image registry. Leave empty to use the repository as written (Docker Hub). |
+| image.repository | string | `"nuwcdivnpt/stig-manager"` | Image repository. |
+| image.tag | string | `""` | Image tag. Defaults to the chart's appVersion. |
+| image.digest | string | `""` | Pull by digest instead of tag (e.g. `sha256:abc...`). Wins over `tag`. |
+| image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
+| imagePullSecrets | list | `[]` | Image pull secrets applied to the pod. |
+| replicaCount | int | `1` | Number of API replicas. The API is stateless; all state lives in MySQL. |
+| strategy | object | `{"rollingUpdate":{"maxSurge":1,"maxUnavailable":0},"type":"RollingUpdate"}` | Deployment update strategy. |
+| revisionHistoryLimit | int | `3` | How many old ReplicaSets to retain. |
+| serviceAccount.create | bool | `true` | Create a ServiceAccount for the pod. |
+| serviceAccount.name | string | `""` | Name of the ServiceAccount. Generated from the release name when empty. |
+| serviceAccount.annotations | object | `{}` | Extra annotations for the ServiceAccount. |
+| serviceAccount.labels | object | `{}` | Extra labels for the ServiceAccount. |
+| serviceAccount.automountServiceAccountToken | bool | `false` | Mount a token into pods that use this ServiceAccount by default. |
+| serviceAccount.imagePullSecrets | list | `[]` | Image pull secrets attached to the ServiceAccount. |
+| automountServiceAccountToken | bool | `false` | Mount the ServiceAccount token in the API pod. The application never calls the Kubernetes API, so this stays off. |
 
 ### Application
 
-| Key             | Type   | Default | Description                                                                                                                         |
-| --------------- | ------ | --------| ----------------------------------------------------------------------------------------------------------------------------------- |
-| classification  | string | `"U"`   | STIGMAN_CLASSIFICATION. Classification banner rendered by the web client. One of: NONE, U, CUI, C, S, TS, SCI. Upstream default: U. |
-| api.port        | int    | `54000` | STIGMAN_API_PORT. TCP port the API listens on. Also the container port.                                                             |
-| api.address     | string | `nil`   | STIGMAN_API_ADDRESS. Listen address. Upstream default: 0.0.0.0.                                                                     |
-| api.maxJsonBody | string | `nil`   | STIGMAN_API_MAX_JSON_BODY. Max application/json request body, in bytes. Upstream default: 5242880.                                  |
-| api.maxUpload   | string | `nil`   | STIGMAN_API_MAX_UPLOAD. Max multipart/form-data upload, in bytes. Upstream default: 1073741824.                                     |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| classification | string | `"U"` | STIGMAN_CLASSIFICATION. Classification banner rendered by the web client. One of: NONE, U, CUI, C, S, TS, SCI. Upstream default: U. |
+| api.port | int | `54000` | STIGMAN_API_PORT. TCP port the API listens on. Also the container port. |
+| api.address | string | `nil` | STIGMAN_API_ADDRESS. Listen address. Upstream default: 0.0.0.0. |
+| api.maxJsonBody | string | `nil` | STIGMAN_API_MAX_JSON_BODY. Max application/json request body, in bytes. Upstream default: 5242880. |
+| api.maxUpload | string | `nil` | STIGMAN_API_MAX_UPLOAD. Max multipart/form-data upload, in bytes. Upstream default: 1073741824. |
 
 ### Database
 
-| Key                                      | Type   | Default                                                                                                                  | Description                                                                                                                                                                              |
-| ---------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| database.host                            | string | `"mysql"`                                                                                                                | STIGMAN_DB_HOST. Hostname or IP of the MySQL server.                                                                                                                                     |
-| database.port                            | int    | `3306`                                                                                                                   | STIGMAN_DB_PORT. MySQL TCP port.                                                                                                                                                         |
-| database.schema                          | string | `"stigman"`                                                                                                              | STIGMAN_DB_SCHEMA. Schema holding the STIG Manager objects.                                                                                                                              |
-| database.user                            | string | `"stigman"`                                                                                                              | STIGMAN_DB_USER. MySQL user.                                                                                                                                                             |
-| database.password                        | string | `""`                                                                                                                     | Password for `database.user`. Ignored when `existingSecret` is set.                                                                                                                      |
-| database.existingSecret                  | string | `""`                                                                                                                     | Name of an existing Secret carrying the database credentials. Wins over `database.password`; when set, no Secret is created by this chart.                                               |
-| database.secretKeys                      | object | `{"apiTlsKeyPassphrase":"api-tls-key-passphrase","dbTlsKeyPassphrase":"db-tls-key-passphrase","password":"db-password"}` | Keys within the Secret (chart-managed or existing).                                                                                                                                      |
-| database.secretKeys.password             | string | `"db-password"`                                                                                                          | Key holding the database password (STIGMAN_DB_PASSWORD).                                                                                                                                 |
-| database.secretKeys.dbTlsKeyPassphrase   | string | `"db-tls-key-passphrase"`                                                                                                | Key holding the database TLS private key passphrase, if your tooling stores one. Not consumed by the application today; kept so a single Secret can carry it for use via `extraEnvVars`. |
-| database.secretKeys.apiTlsKeyPassphrase  | string | `"api-tls-key-passphrase"`                                                                                               | Key holding the API server TLS private key passphrase (STIGMAN_API_TLS_KEY_PASSPHRASE).                                                                                                  |
-| database.maxConnections                  | string | `nil`                                                                                                                    | STIGMAN_DB_MAX_CONNECTIONS. Connection pool –size. Upstream default: 25.                                                                                                                 |
-| database.tls.enabled                     | bool   | `false`                                                                                                                  | Enable TLS to MySQL. Requires `existingSecret`.                                                                                                                                          |
-| database.tls.mountPath                   | string | `"/etc/stigman/db-tls"`                                                                                                  | Where the material is mounted in the container.                                                                                                                                          |
-| database.tls.existingSecret              | string | `""`                                                                                                                     | Secret holding the database TLS material.                                                                                                                                                |
-| database.tls.caFile                      | string | `"ca.pem"`                                                                                                               | STIGMAN_DB_TLS_CA_FILE. Key in the Secret holding the CA certificate. Setting this is what enables TLS connections to the database.                                                      |
-| database.tls.certFile                    | string | `""`                                                                                                                     | STIGMAN_DB_TLS_CERT_FILE. Client certificate, for mTLS. Optional.                                                                                                                        |
-| database.tls.keyFile                     | string | `""`                                                                                                                     | STIGMAN_DB_TLS_KEY_FILE. Client private key, for mTLS. Optional.                                                                                                                         |
-| database.tls.keyPassphrase               | string | `""`                                                                                                                     | Passphrase for the client private key. Stored under `database.secretKeys.dbTlsKeyPassphrase` in the chart-managed Secret.                                                                |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| database.host | string | `"mysql"` | STIGMAN_DB_HOST. Hostname or IP of the MySQL server. |
+| database.port | int | `3306` | STIGMAN_DB_PORT. MySQL TCP port. |
+| database.schema | string | `"stigman"` | STIGMAN_DB_SCHEMA. Schema holding the STIG Manager objects. |
+| database.user | string | `"stigman"` | STIGMAN_DB_USER. MySQL user. |
+| database.password | string | `""` | Password for `database.user`. Ignored when `existingSecret` is set. |
+| database.existingSecret | string | `""` | Name of an existing Secret carrying the database credentials. Wins over `database.password`; when set, no Secret is created by this chart. |
+| database.secretKeys | object | `{"apiTlsKeyPassphrase":"api-tls-key-passphrase","dbTlsKeyPassphrase":"db-tls-key-passphrase","password":"db-password"}` | Keys within the Secret (chart-managed or existing). |
+| database.secretKeys.password | string | `"db-password"` | Key holding the database password (STIGMAN_DB_PASSWORD). |
+| database.secretKeys.dbTlsKeyPassphrase | string | `"db-tls-key-passphrase"` | Key holding the database TLS private key passphrase, if your tooling stores one. Not consumed by the application today; kept so a single Secret can carry it for use via `extraEnvVars`. |
+| database.secretKeys.apiTlsKeyPassphrase | string | `"api-tls-key-passphrase"` | Key holding the API server TLS private key passphrase (STIGMAN_API_TLS_KEY_PASSPHRASE). |
+| database.maxConnections | string | `nil` | STIGMAN_DB_MAX_CONNECTIONS. Connection pool size. Upstream default: 25. |
+| database.tls.enabled | bool | `false` | Enable TLS to MySQL. Requires `existingSecret`. |
+| database.tls.existingSecret | string | `""` | Secret holding the database TLS material. |
+| database.tls.mountPath | string | `"/etc/stigman/db-tls"` | Where the material is mounted in the container. |
+| database.tls.caFile | string | `"ca.pem"` | STIGMAN_DB_TLS_CA_FILE. Key in the Secret holding the CA certificate. Setting this is what enables TLS connections to the database. |
+| database.tls.certFile | string | `""` | STIGMAN_DB_TLS_CERT_FILE. Client certificate, for mTLS. Optional. |
+| database.tls.keyFile | string | `""` | STIGMAN_DB_TLS_KEY_FILE. Client private key, for mTLS. Optional. |
+| database.tls.keyPassphrase | string | `""` | Passphrase for the client private key. Stored under `database.secretKeys.dbTlsKeyPassphrase` in the chart-managed Secret. |
 
 ### OIDC
 
 | Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
+|-----|------|---------|-------------|
 | oidc.provider | string | `""` | STIGMAN_OIDC_PROVIDER. Base URL of the OIDC issuer. `/.well-known/openid-configuration` is appended when fetching metadata. e.g. `https://keycloak.example.com/realms/stigman` |
 | oidc.clientProvider | string | `nil` | STIGMAN_CLIENT_OIDC_PROVIDER. Web-client override of the issuer URL, for split-horizon DNS where the browser and the API reach the IdP differently. |
 | oidc.audience | string | `nil` | STIGMAN_JWT_AUD_VALUE. Required `aud` claim value. Unset disables the check. |
@@ -506,7 +506,7 @@ linted and rendered by the `helm-lint` and `helm-kubeconform` hooks.
 ### Web client
 
 | Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
+|-----|------|---------|-------------|
 | client.id | string | `"stig-manager"` | STIGMAN_CLIENT_ID. OIDC clientId the web client authenticates with. Upstream default: stig-manager. |
 | client.disabled | string | `nil` | STIGMAN_CLIENT_DISABLED. `true` stops the API serving the web client. |
 | client.directory | string | `nil` | STIGMAN_CLIENT_DIRECTORY. Location of the client files inside the image. |
@@ -529,7 +529,7 @@ linted and rendered by the `helm-lint` and `helm-kubeconform` hooks.
 ### SwaggerUI
 
 | Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
+|-----|------|---------|-------------|
 | swagger.enabled | string | `nil` | STIGMAN_SWAGGER_ENABLED. Serve the SwaggerUI SPA at /api-docs. Upstream default: false. |
 | swagger.server | string | `nil` | STIGMAN_SWAGGER_SERVER. API base URL as SwaggerUI should call it, e.g. `https://stigman.example.com/api`. |
 | swagger.redirect | string | `nil` | STIGMAN_SWAGGER_REDIRECT. OAuth2 redirect URL SwaggerUI sends to the IdP, e.g. `https://stigman.example.com/api-docs/oauth2-redirect.html`. |
@@ -545,7 +545,7 @@ linted and rendered by the `helm-lint` and `helm-kubeconform` hooks.
 ### Logging, startup and extra configuration
 
 | Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
+|-----|------|---------|-------------|
 | logging.level | string | `nil` | STIGMAN_LOG_LEVEL. 1 (error) to 4 (debug). Upstream default: 3. |
 | logging.mode | string | `nil` | STIGMAN_LOG_MODE. `combined` for one entry per request/response pair, `separate` for two. Upstream default: combined. |
 | dependencyRetries | string | `nil` | STIGMAN_DEPENDENCY_RETRIES. Startup retries against MySQL and the OIDC provider before giving up. Upstream default: 24. |
@@ -559,7 +559,7 @@ linted and rendered by the `helm-lint` and `helm-kubeconform` hooks.
 ### Trusted CA certificates
 
 | Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
+|-----|------|---------|-------------|
 | trustedCAs.enabled | bool | `false` | Mount a CA bundle and point the application at it. |
 | trustedCAs.certs | object | `{}` | Map of name → PEM. Concatenated in key order into one bundle file. |
 | trustedCAs.existingConfigMap | string | `""` | Use an existing ConfigMap instead of `certs`. Mutually exclusive with `existingSecret`. |
@@ -572,7 +572,7 @@ linted and rendered by the `helm-lint` and `helm-kubeconform` hooks.
 ### API TLS
 
 | Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
+|-----|------|---------|-------------|
 | tls.enabled | bool | `false` | Serve HTTPS directly from the API container. Requires `existingSecret`. |
 | tls.existingSecret | string | `""` | Secret holding the server certificate and key. |
 | tls.mountPath | string | `"/etc/stigman/tls"` | Where that Secret is mounted. |
@@ -583,7 +583,7 @@ linted and rendered by the `helm-lint` and `helm-kubeconform` hooks.
 ### Service
 
 | Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
+|-----|------|---------|-------------|
 | service.type | string | `"ClusterIP"` | Service type. |
 | service.port | int | `80` | Service port. |
 | service.targetPort | string | `""` | Target port. Defaults to the container's named `http` port. |
@@ -604,7 +604,7 @@ linted and rendered by the `helm-lint` and `helm-kubeconform` hooks.
 ### Ingress
 
 | Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
+|-----|------|---------|-------------|
 | ingress.enabled | bool | `false` | Create an Ingress. |
 | ingress.className | string | `""` | ingressClassName. |
 | ingress.annotations | object | `{}` | Ingress annotations. |
@@ -617,7 +617,7 @@ linted and rendered by the `helm-lint` and `helm-kubeconform` hooks.
 ### NetworkPolicy
 
 | Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
+|-----|------|---------|-------------|
 | networkPolicy.enabled | bool | `false` | Create a NetworkPolicy for the API pod. |
 | networkPolicy.allowAllIngress | bool | `false` | Accept ingress from anywhere on the API port. When false, only `allowedIngress` peers are accepted. |
 | networkPolicy.allowedIngress | list | `[]` | Peers permitted to reach the API port: podSelector, namespaceSelector and/or ipBlock entries, exactly as the NetworkPolicy API expects them. |
@@ -633,7 +633,7 @@ linted and rendered by the `helm-lint` and `helm-kubeconform` hooks.
 ### Pod, container and scheduling
 
 | Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
+|-----|------|---------|-------------|
 | commonLabels | object | `{}` | Labels added to every object this chart renders. |
 | commonAnnotations | object | `{}` | Annotations added to every object this chart renders. |
 | deploymentAnnotations | object | `{}` | Annotations on the Deployment object itself (not the pod template). This is where controllers that watch Deployments read their configuration — Stakater Reloader, Argo CD sync options, Keel, and so on:    deploymentAnnotations:     reloader.stakater.com/auto: "true"  The chart already stamps checksum/config, checksum/secret and checksum/ca on the pod template, so config it owns rolls pods without Reloader. Reloader earns its keep for objects the chart references but does not render: `database.existingSecret`, `extraEnvVarsCM`, `extraEnvVarsSecret`, and `trustedCAs.existingConfigMap`/`existingSecret`. See the chart README. |
@@ -669,7 +669,7 @@ linted and rendered by the `helm-lint` and `helm-kubeconform` hooks.
 ### Probes
 
 | Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
+|-----|------|---------|-------------|
 | startupProbe | object | `{"custom":{},"enabled":true,"failureThreshold":30,"initialDelaySeconds":0,"path":"/api/op/configuration","periodSeconds":10,"successThreshold":1,"timeoutSeconds":5}` | Startup probe. Targets /api/op/configuration, which reflects database and OIDC reachability. Set `custom` to replace the generated block entirely. |
 | readinessProbe | object | `{"custom":{},"enabled":true,"failureThreshold":3,"initialDelaySeconds":10,"path":"/api/op/configuration","periodSeconds":10,"successThreshold":1,"timeoutSeconds":5}` | Readiness probe. Same target as the startup probe, so a pod that loses its database or IdP leaves the Service endpoints. |
 | livenessProbe | object | `{"custom":{},"enabled":true,"failureThreshold":3,"initialDelaySeconds":15,"path":"/api/op/state","periodSeconds":20,"successThreshold":1,"timeoutSeconds":5}` | Liveness probe. Targets /api/op/state, which answers even while the API is still waiting on its dependencies — probing anything else would restart a pod that is merely waiting for MySQL. |
@@ -677,7 +677,7 @@ linted and rendered by the `helm-lint` and `helm-kubeconform` hooks.
 ### Tests
 
 | Key | Type | Default | Description |
-| ----- | ------ | --------- | ------------- |
+|-----|------|---------|-------------|
 | tests.enabled | bool | `true` | Render the `helm test` pod. |
 | tests.image | object | `{"pullPolicy":"IfNotPresent","repository":"curlimages/curl","tag":"8.11.1"}` | Image the test pod runs. Needs nothing but curl. |
 | tests.timeout | int | `10` | curl timeout, in seconds. |

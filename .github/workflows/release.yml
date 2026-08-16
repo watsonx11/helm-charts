@@ -1,0 +1,57 @@
+name: Release charts
+
+# Publishes every chart under charts/ as a GitHub Release with the packaged
+# .tgz attached, and updates index.yaml on the gh-pages branch. That branch,
+# served by GitHub Pages, is what makes the repository installable:
+#
+#   helm repo add watsonx11 https://watsonx11.github.io/helm-charts
+#
+# chart-releaser only publishes a chart whose Chart.yaml version has no release
+# yet, so the chart-version-bump pre-commit hook is what actually drives this:
+# no bump, no release. Re-running on an unchanged chart is a no-op.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - charts/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A release both creates tags and pushes to gh-pages; two concurrent runs would
+# race on the index.
+concurrency:
+  group: release-charts
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      # chart-releaser creates Releases and pushes index.yaml to gh-pages.
+      contents: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7.0.1
+        with:
+          # chart-releaser diffs against history to decide which chart versions
+          # are new, so a shallow clone would make every chart look unreleased.
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Release charts
+        uses: helm/chart-releaser-action@v1.7.0
+        with:
+          charts_dir: charts
+          # Tolerate a re-run over a version that is already published rather
+          # than failing the workflow.
+          skip_existing: true
+        env:
+          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -11,6 +11,32 @@ helm-docs executes this file through text/template, so an unescaped
 `{{ include ... }}` would be evaluated here (and fail — `include` is a Helm
 function, not a text/template one) instead of being printed.
 */ -}}
+{{/*
+Override two helm-docs built-ins so their output matches the rest of the
+repository. The built-in chart.sourcesSection writes `*` bullets and the
+built-in chart.maintainersSection pads an empty cell to two spaces; both fought
+hand edits to the generated README, which helm-docs then reverted on the next
+run. Redefining them here makes the preferred formatting the generated output.
+*/ -}}
+{{- define "chart.sourcesSection" -}}
+{{- if .Sources -}}
+## Source Code
+
+{{ range .Sources }}- <{{ . }}>
+{{ end }}
+{{- end -}}
+{{- end -}}
+{{- define "chart.maintainersSection" -}}
+{{- if .Maintainers -}}
+## Maintainers
+
+| Name | Email | Url |
+| ---- | ------ | --- |
+{{ range .Maintainers -}}
+| {{ .Name }} |{{ if .Email }} {{ .Email }}{{ end }} |{{ if .Url }} <{{ .Url }}>{{ end }} |
+{{ end }}
+{{- end -}}
+{{- end -}}
 {{ template "chart.header" . }}
 
 A Helm chart for [STIG Manager](https://github.com/NUWCDIVNPT/stig-manager) — an

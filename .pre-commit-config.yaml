@@ -141,6 +141,7 @@ repos:
         files: |
           (?x)^(
             charts/[^/]+/(Chart\.yaml|values\.yaml|ci/.*\.ya?ml)|
+            \.github/workflows/.*\.ya?ml|
             \.pre-commit-config\.yaml|
             \.pre_commit_config/.*\.ya?ml
           )$

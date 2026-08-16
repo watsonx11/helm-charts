@@ -18,6 +18,8 @@
 .vscode/
 # CI values are for chart testing only, not for consumers
 ci/
+# helm-docs input; consumers get the rendered README.md, not the template
+README.md.gotmpl
 # Rendered output / local scratch
 output/
 *.tgz
