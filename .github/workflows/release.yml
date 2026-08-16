@@ -10,12 +10,13 @@ name: Release charts
 # yet, so the chart-version-bump pre-commit hook is what actually drives this:
 # no bump, no release. Re-running on an unchanged chart is a no-op.
 
+# No paths filter: every push to main runs the checks. The release job below is
+# a no-op unless a chart version is new, so gating on charts/** would only serve
+# to let an unchecked non-chart change through.
 on:
   push:
     branches:
       - main
-    paths:
-      - charts/**
   workflow_dispatch:
 
 permissions:
@@ -28,7 +29,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The same suite that guards local commits. Nothing publishes unless it passes.
+  checks:
+    uses: ./.github/workflows/checks.yml
+
   release:
+    needs: checks
     runs-on: ubuntu-latest
     permissions:
       # chart-releaser creates Releases and pushes index.yaml to gh-pages.

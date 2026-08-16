@@ -1,0 +1,92 @@
+name: Checks
+
+# Runs the same pre-commit suite that guards local commits, so a chart that
+# reached main via `SKIP=`, or from a clone where nobody ran `pre-commit
+# install`, still fails before it can be released. release.yml calls this
+# workflow and will not publish unless it passes.
+
+on:
+  pull_request:
+  workflow_call:
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7.0.1
+        with:
+          # The chart-version-bump step below compares against a base commit,
+          # which a shallow clone would not contain.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.13"
+
+      # helm and kubeconform are `language: system` hooks on purpose: they must
+      # match the tooling the charts are validated against, so they are pinned
+      # here rather than resolved to whatever is newest. Bump these together
+      # with the versions developers install locally.
+      - name: Set up helm
+        uses: azure/setup-helm@v5.0.1
+        with:
+          version: v4.2.3
+
+      - name: Set up kubeconform
+        env:
+          KUBECONFORM_VERSION: v0.8.0
+        run: |
+          curl -fsSL -o /tmp/kubeconform.tar.gz \
+            "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+          tar -xzf /tmp/kubeconform.tar.gz -C /tmp kubeconform
+          install -m 0755 /tmp/kubeconform /usr/local/bin/kubeconform
+          kubeconform -v
+
+      # The Go and Node toolchains pre-commit builds for helm-docs and
+      # markdownlint dominate a cold run; cache them on the config hash.
+      - name: Cache pre-commit environments
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-py3.13-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            pre-commit-${{ runner.os }}-py3.13-
+
+      - name: Install pre-commit
+        run: pip install "pre-commit==4.6.1"
+
+      - name: Run all hooks
+        run: pre-commit run --all-files --show-diff-on-failure --color=always
+
+      # --all-files cannot enforce the version bump: on a clean checkout the
+      # worktree equals HEAD, so nothing looks changed. Re-run just that hook
+      # against the base commit, which is the comparison it is actually for.
+      - name: Enforce chart version bumps
+        run: |
+          case "${{ github.event_name }}" in
+            pull_request) base='${{ github.event.pull_request.base.sha }}' ;;
+            push)         base='${{ github.event.before }}' ;;
+            *)            base='' ;;
+          esac
+
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then
+            echo "No usable base commit for this event; skipping."
+            exit 0
+          fi
+          if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo "Base commit $base is not in this clone (force-push?); skipping."
+            exit 0
+          fi
+
+          echo "Comparing against $base"
+          pre-commit run chart-version-bump \
+            --from-ref "$base" --to-ref HEAD --color=always
