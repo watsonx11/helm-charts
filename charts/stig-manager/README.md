@@ -40,8 +40,29 @@ Kubernetes: `>=1.25.0-0`
 
 ## Install
 
+Add the chart repository, then refresh it whenever you want newly released
+versions:
+
 ```sh
-helm install stig-manager ./charts/stig-manager \
+helm repo add watsonx11 https://watsonx11.github.io/helm-charts
+helm repo update watsonx11
+```
+
+`watsonx11` is a local alias — call it whatever you like and substitute that
+name below. `helm repo update` (short form `helm repo up`) with no argument
+refreshes every repository you have added.
+
+Check what is published:
+
+```sh
+helm search repo watsonx11/stig-manager --versions
+```
+
+Then install. The API will not become ready without a reachable MySQL and OIDC
+issuer, so supply both up front:
+
+```sh
+helm install stig-manager watsonx11/stig-manager --version 0.2.0 \
   --namespace stig-manager --create-namespace \
   --set database.host=mysql.data.svc.cluster.local \
   --set database.user=stigman \
@@ -50,10 +71,33 @@ helm install stig-manager ./charts/stig-manager \
   --set oidc.provider=https://keycloak.example.com/realms/stigman
 ```
 
+Pinning `--version` means a later release cannot change what you deploy; drop it
+to always take the newest published chart.
+
 Then verify:
 
 ```sh
 helm test stig-manager -n stig-manager
+```
+
+### Upgrading to a newer chart version
+
+`helm repo update` only refreshes the local index; it changes nothing running.
+Update, then upgrade:
+
+```sh
+helm repo update watsonx11
+helm upgrade stig-manager watsonx11/stig-manager --version <newer> --reuse-values
+```
+
+### Installing from a clone
+
+No repository needed — for chart development, or to run an unreleased commit:
+
+```sh
+helm install stig-manager ./charts/stig-manager \
+  --namespace stig-manager --create-namespace \
+  --values my-values.yaml
 ```
 
 ## Connecting to an external MySQL

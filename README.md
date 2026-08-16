@@ -6,6 +6,74 @@ Helm charts for the following applications.
 | -------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------- |
 | [`charts/stig-manager`](charts/stig-manager) | [STIG Manager](https://github.com/nuwcdivnpt/stig-manager) | Application only — bring your own MySQL and OIDC provider. |
 
+## Adding the repository
+
+The charts are published to GitHub Pages. Add the repository once, then refresh
+it whenever you want to pick up newly released versions:
+
+```shell
+helm repo add watsonx11 https://watsonx11.github.io/helm-charts
+helm repo update watsonx11
+```
+
+`watsonx11` is just a local alias — name it whatever you like, and use that name
+everywhere below. `helm repo update` (short form `helm repo up`) with no
+argument refreshes every repository you have added; naming one keeps it quick.
+
+See what is available:
+
+```shell
+helm search repo watsonx11              # latest version of each chart
+helm search repo watsonx11 --versions   # every published version
+```
+
+Then install, pinning the chart version so a later release cannot change what
+you deploy:
+
+```shell
+helm install stig-manager watsonx11/stig-manager --version 0.2.0 \
+  --namespace stig-manager --create-namespace \
+  --values my-values.yaml
+```
+
+Each chart's own README documents its values; see
+[`charts/stig-manager`](charts/stig-manager) for that chart's requirements
+before installing, since it needs an external MySQL and OIDC provider to become
+ready.
+
+`helm repo update` only refreshes the local index — it does not touch anything
+running. To move an existing release onto a newer chart, update and then
+upgrade:
+
+```shell
+helm repo update watsonx11
+helm upgrade stig-manager watsonx11/stig-manager --version 0.3.0 --reuse-values
+```
+
+### Flux
+
+Point a `HelmRepository` at the same URL:
+
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: watsonx11
+  namespace: flux-system
+spec:
+  interval: 60m0s
+  url: https://watsonx11.github.io/helm-charts
+```
+
+### Installing from a clone
+
+No repository needed — useful when developing a chart or pinning to an
+unreleased commit:
+
+```shell
+helm install stig-manager ./charts/stig-manager --values my-values.yaml
+```
+
 ## Conventions
 
 These apply to every chart in this repository.
