@@ -8,7 +8,7 @@ description: |
 type: application
 
 # Chart version. Bump on every change to the chart itself.
-version: 0.2.0
+version: 0.2.1
 
 # Version of STIG Manager this chart deploys by default.
 appVersion: "1.6.15"
@@ -50,6 +50,8 @@ annotations:
       image: nuwcdivnpt/stig-manager:1.6.15
   artifacthub.io/changes: |
     - kind: added
-      description: deploymentAnnotations value for controllers that watch Deployments
-    - kind: added
-      description: ServiceAccount and helm test connection templates
+      description: MIT LICENSE, backing the license this chart already declared
+    - kind: changed
+      description: README documents installing from the published chart repository
+    - kind: fixed
+      description: extraManifests examples use current CRD apiVersions

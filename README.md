@@ -74,6 +74,13 @@ unreleased commit:
 helm install stig-manager ./charts/stig-manager --values my-values.yaml
 ```
 
+## License
+
+[MIT](LICENSE).
+
+This covers the charts in this repository, not the applications they deploy —
+each of those carries its own licence, linked from the chart's `sources`.
+
 ## Conventions
 
 These apply to every chart in this repository.

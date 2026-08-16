@@ -4,7 +4,7 @@ A Helm chart for [STIG Manager](https://github.com/NUWCDIVNPT/stig-manager) — 
 API and web client for managing the assessment of information systems against
 DISA Security Technical Implementation Guides (STIGs).
 
-![Version: 0.2.0](https://img.shields.io/badge/Version-0.2.0-informational?style=flat-square)
+![Version: 0.2.1](https://img.shields.io/badge/Version-0.2.1-informational?style=flat-square)
 ![AppVersion: 1.6.15](https://img.shields.io/badge/AppVersion-1.6.15-informational?style=flat-square)
 
 **Homepage:** <https://github.com/NUWCDIVNPT/stig-manager>
@@ -62,7 +62,7 @@ Then install. The API will not become ready without a reachable MySQL and OIDC
 issuer, so supply both up front:
 
 ```sh
-helm install stig-manager watsonx11/stig-manager --version 0.2.0 \
+helm install stig-manager watsonx11/stig-manager --version 0.2.1 \
   --namespace stig-manager --create-namespace \
   --set database.host=mysql.data.svc.cluster.local \
   --set database.user=stigman \
